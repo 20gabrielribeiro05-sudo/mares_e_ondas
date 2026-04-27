@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estado do Mar - Velhinho</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #0b131e; 
+            color: #e0e0e0; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 20px;
+        }
+        .container { 
+            max-width: 400px; 
+            width: 100%; 
+            background: #16222f; 
+            padding: 25px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #23395b;
+        }
+        h1 { color: #4db8ff; font-size: 1.5rem; margin-bottom: 20px; text-align: center; }
+        .info-group { 
+            margin-bottom: 20px; 
+            padding: 15px; 
+            background: #1f2d3d; 
+            border-radius: 10px; 
+        }
+        .label { color: #8899a6; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; }
+        .value { font-size: 1.2rem; display: block; margin-top: 5px; color: #fff; }
+        #status { font-size: 0.9rem; color: #ffa500; margin-bottom: 15px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Estado do Mar 🌊</h1>
+        <div id="status">A detetar localização...</div>
+
+        <div id="dashboard" style="display:none;">
+            <div class="info-group">
+                <span class="label">Ondulação</span>
+                <span id="ondas" class="value">--</span>
+            </div>
+            <div class="info-group">
+                <span class="label">Vento</span>
+                <span id="vento" class="value">--</span>
+            </div>
+            <div class="info-group">
+                <span class="label">Maré (Altura Atual)</span>
+                <span id="mare" class="value">--</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function obterDirecao(graus) {
+            const direcoes = ["Norte", "Nordeste", "Este", "Sudeste", "Sul", "Sudoeste", "Oeste", "Noroeste"];
+            return direcoes[Math.round(graus / 45) % 8];
+        }
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            const status = document.getElementById('status');
+            const dash = document.getElementById('dashboard');
+
+            status.innerText = "📍 Localização obtida. A carregar dados...";
+
+            try {
+                // API de Ondas e Marés
+                const marineRes = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${latitude}&longitude=${longitude}&current=wave_height,wave_direction,wave_period&hourly=tide_height`);
+                const marineData = await marineRes.json();
+
+                // API de Vento
+                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=wind_speed_10m,wind_direction_10m`);
+                const weatherData = await weatherRes.json();
+
+                // Atualizar UI
+                status.innerText = `Pronto para a sessão!`;
+                dash.style.display = 'block';
+
+                document.getElementById('ondas').innerText = 
+                    `${marineData.current.wave_height}m | ${marineData.current.wave_period}s de ${obterDirecao(marineData.current.wave_direction)}`;
+                
+                document.getElementById('vento').innerText = 
+                    `${weatherData.current.wind_speed_10m} km/h de ${obterDirecao(weatherData.current.wind_direction_10m)}`;
+
+                // Pega a altura da maré da hora atual
+                const horaAtual = new Date().getHours();
+                const alturaMare = marineData.hourly.tide_height[horaAtual];
+                document.getElementById('mare').innerText = `${alturaMare.toFixed(2)}m`;
+
+            } catch (err) {
+                status.innerText = "❌ Erro ao ligar às APIs. Tenta de novo.";
+                console.error(err);
+            }
+        }, (err) => {
+            document.getElementById('status').innerText = "❌ Precisas de ativar o GPS, Velhinho!";
+        });
+    </script>
+</body>
+</html>
