@@ -3,81 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>O Teu Spot - Velhinho</title>
+    <title>Radar de Vento e Mar - Gráficos</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; text-align: center; padding: 20px; margin: 0; }
-        h1 { color: #00d2ff; }
-        .dashboard { background: #1e1e1e; border-radius: 12px; padding: 20px; max-width: 400px; margin: 20px auto; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        button { background: #00d2ff; color: #121212; border: none; padding: 15px 30px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; }
-        button:hover { background: #00a8cc; }
-        .dado { font-size: 24px; margin: 15px 0; padding: 10px; background: #2a2a2a; border-radius: 8px; }
-        .erro { color: #ff4c4c; font-weight: bold; margin-top: 15px; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #121212; 
+            color: #e0e0e0; 
+            padding: 20px; 
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 { 
+            text-align: center; 
+            color: #4fa3d1; 
+        }
+        .status { 
+            text-align: center; 
+            font-style: italic; 
+            color: #888; 
+            margin: 20px 0;
+        }
+        .error { 
+            color: #ff6b6b; 
+            font-weight: bold; 
+        }
+        .chart-container {
+            background: #242424;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 1px solid #333;
+            display: none;
+        }
+        canvas {
+            max-height: 400px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Como é que está o mar, Velhinho?</h1>
-    <p>Clica para puxar o GPS onde estás agora.</p>
+    <h1>Evolução do Spot (Hoje)</h1>
+    <div id="status" class="status">A caçar o sinal de GPS...</div>
     
-    <button id="btn-puxar">Ver Condições do Meu Local</button>
-    <p id="msg-erro" class="erro"></p>
-
-    <div id="dashboard" class="dashboard">
-        <h2>Condições Atuais:</h2>
-        <div class="dado">🌊 Ondas: <strong id="onda">-</strong></div>
-        <div class="dado">🌬️ Vento: <strong id="vento">-</strong></div>
+    <div class="chart-container" id="charts-container">
+        <canvas id="ventoChart"></canvas>
+        <br><br>
+        <canvas id="ondaChart"></canvas>
     </div>
 
     <script>
-        const btn = document.getElementById('btn-puxar');
-        const dash = document.getElementById('dashboard');
-        const erroMsg = document.getElementById('msg-erro');
+        const statusEl = document.getElementById('status');
+        const chartsContainer = document.getElementById('charts-container');
 
-        btn.addEventListener('click', () => {
-            erroMsg.innerText = "A procurar o teu GPS... acorda lá isso!";
-            dash.style.display = "none";
+        // Formatar as horas para o eixo X do gráfico
+        function formatarHora(dataIso) {
+            const data = new Date(dataIso);
+            return data.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+        }
 
-            if (!navigator.geolocation) {
-                erroMsg.innerText = "O teu browser é pré-histórico, não tem GPS.";
-                return;
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(fetchData, showError);
+        } else {
+            statusEl.innerHTML = "<span class='error'>O teu browser é muito velho. Não tem GPS.</span>";
+        }
+
+        async function fetchData(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            statusEl.innerText = "Coordenadas apanhadas. A gerar os gráficos...";
+
+            try {
+                // Ir buscar dados do Vento
+                const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_gusts_10m&forecast_days=1&timezone=auto`;
+                const weatherRes = await fetch(weatherUrl);
+                const weatherData = await weatherRes.json();
+
+                // Ir buscar dados do Mar
+                const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=wave_height,wave_period&forecast_days=1&timezone=auto`;
+                const marineRes = await fetch(marineUrl);
+                const marineData = await marineRes.json();
+
+                // Preparar as arrays para o Chart.js
+                const labels = weatherData.hourly.time.map(formatarHora);
+                const ventoVel = weatherData.hourly.wind_speed_10m;
+                const ventoRaj = weatherData.hourly.wind_gusts_10m;
+                
+                // Tratar os dados do mar (substituir nulls por 0 para o gráfico não berrar)
+                const ondaAlt = marineData.hourly.wave_height.map(val => val === null ? 0 : val);
+
+                // Apagar a mensagem de status e mostrar o contentor dos gráficos
+                statusEl.style.display = 'none';
+                chartsContainer.style.display = 'block';
+
+                // Desenhar Gráfico do Vento
+                const ctxVento = document.getElementById('ventoChart').getContext('2d');
+                new Chart(ctxVento, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Vento (km/h)',
+                                data: ventoVel,
+                                borderColor: '#4fa3d1',
+                                backgroundColor: 'rgba(79, 163, 209, 0.2)',
+                                borderWidth: 2,
+                                tension: 0.3,
+                                fill: true
+                            },
+                            {
+                                label: 'Rajadas (km/h)',
+                                data: ventoRaj,
+                                borderColor: '#ff6b6b',
+                                borderDash: [5, 5],
+                                borderWidth: 2,
+                                tension: 0.3,
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#e0e0e0' } },
+                            title: { display: true, text: 'Vento e Rajadas', color: '#fff', font: { size: 16 } }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#aaa' }, grid: { color: '#333' } },
+                            y: { ticks: { color: '#aaa' }, grid: { color: '#333' } }
+                        }
+                    }
+                });
+
+                // Desenhar Gráfico do Mar
+                const ctxOnda = document.getElementById('ondaChart').getContext('2d');
+                new Chart(ctxOnda, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Altura da Onda (m)',
+                                data: ondaAlt,
+                                backgroundColor: '#2ecc71',
+                                borderRadius: 4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#e0e0e0' } },
+                            title: { display: true, text: 'Tamanho do Mar', color: '#fff', font: { size: 16 } }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#aaa' }, grid: { display: false } },
+                            y: { ticks: { color: '#aaa' }, grid: { color: '#333' } }
+                        }
+                    }
+                });
+
+            } catch (error) {
+                statusEl.innerHTML = "<span class='error'>A API falhou e não enviou os dados. Tenta outra vez.</span>";
+                console.error(error);
             }
+        }
 
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-
-                try {
-                    erroMsg.innerText = `GPS apanhado! A puxar os dados do mar...`;
-                    
-                    const resOndas = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height&timezone=auto`);
-                    if (!resOndas.ok) throw new Error("A API das ondas mandou-nos dar uma curva.");
-                    const dadosOndas = await resOndas.json();
-
-                    const resVento = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`);
-                    if (!resVento.ok) throw new Error("A API do vento está em baixo.");
-                    const dadosVento = await resVento.json();
-
-                    erroMsg.innerText = "";
-                    dash.style.display = "block";
-
-                    const alturaOnda = dadosOndas.current?.wave_height;
-                    const velVento = dadosVento.current_weather?.windspeed;
-
-                    document.getElementById('onda').innerText = alturaOnda !== undefined ? `${alturaOnda} metros` : 'Liso que nem uma lagoa';
-                    document.getElementById('vento').innerText = velVento !== undefined ? `${velVento} km/h` : 'Sem dados';
-
-                } catch (err) {
-                    erroMsg.innerText = `Deu raia na ligação: ${err.message}`;
-                }
-
-            }, (erroGPS) => {
-                erroMsg.innerText = `O GPS falhou: ${erroGPS.message}. Vai às definições dar permissão a esta porcaria!`;
-            }, {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            });
-        });
+        function showError(error) {
+            statusEl.innerHTML = `<span class='error'>GPS bloqueado ou indisponível. Erro: ${error.message}</span>`;
+        }
     </script>
 </body>
 </html>
