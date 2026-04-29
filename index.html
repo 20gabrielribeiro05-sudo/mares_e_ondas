@@ -3,103 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estado do Mar - Velhinho</title>
+    <title>O Teu Spot - Velhinho</title>
     <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #0b131e; 
-            color: #e0e0e0; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            padding: 20px;
-        }
-        .container { 
-            max-width: 400px; 
-            width: 100%; 
-            background: #16222f; 
-            padding: 25px; 
-            border-radius: 15px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 1px solid #23395b;
-        }
-        h1 { color: #4db8ff; font-size: 1.5rem; margin-bottom: 20px; text-align: center; }
-        .info-group { 
-            margin-bottom: 20px; 
-            padding: 15px; 
-            background: #1f2d3d; 
-            border-radius: 10px; 
-        }
-        .label { color: #8899a6; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; }
-        .value { font-size: 1.2rem; display: block; margin-top: 5px; color: #fff; }
-        #status { font-size: 0.9rem; color: #ffa500; margin-bottom: 15px; text-align: center; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; text-align: center; padding: 20px; margin: 0; }
+        h1 { color: #00d2ff; }
+        .dashboard { background: #1e1e1e; border-radius: 12px; padding: 20px; max-width: 400px; margin: 20px auto; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        button { background: #00d2ff; color: #121212; border: none; padding: 15px 30px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; }
+        button:hover { background: #00a8cc; }
+        .dado { font-size: 24px; margin: 15px 0; padding: 10px; background: #2a2a2a; border-radius: 8px; }
+        .erro { color: #ff4c4c; font-weight: bold; margin-top: 15px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>Estado do Mar 🌊</h1>
-        <div id="status">A detetar localização...</div>
+    <h1>Como é que está o mar, Velhinho?</h1>
+    <p>Clica para puxar o GPS onde estás agora.</p>
+    
+    <button id="btn-puxar">Ver Condições do Meu Local</button>
+    <p id="msg-erro" class="erro"></p>
 
-        <div id="dashboard" style="display:none;">
-            <div class="info-group">
-                <span class="label">Ondulação</span>
-                <span id="ondas" class="value">--</span>
-            </div>
-            <div class="info-group">
-                <span class="label">Vento</span>
-                <span id="vento" class="value">--</span>
-            </div>
-            <div class="info-group">
-                <span class="label">Maré (Altura Atual)</span>
-                <span id="mare" class="value">--</span>
-            </div>
-        </div>
+    <div id="dashboard" class="dashboard">
+        <h2>Condições Atuais:</h2>
+        <div class="dado">🌊 Ondas: <strong id="onda">-</strong></div>
+        <div class="dado">🌬️ Vento: <strong id="vento">-</strong></div>
     </div>
 
     <script>
-        function obterDirecao(graus) {
-            const direcoes = ["Norte", "Nordeste", "Este", "Sudeste", "Sul", "Sudoeste", "Oeste", "Noroeste"];
-            return direcoes[Math.round(graus / 45) % 8];
-        }
+        const btn = document.getElementById('btn-puxar');
+        const dash = document.getElementById('dashboard');
+        const erroMsg = document.getElementById('msg-erro');
 
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            const { latitude, longitude } = pos.coords;
-            const status = document.getElementById('status');
-            const dash = document.getElementById('dashboard');
+        btn.addEventListener('click', () => {
+            erroMsg.innerText = "A procurar o teu GPS... acorda lá isso!";
+            dash.style.display = "none";
 
-            status.innerText = "📍 Localização obtida. A carregar dados...";
-
-            try {
-                // API de Ondas e Marés
-                const marineRes = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${latitude}&longitude=${longitude}&current=wave_height,wave_direction,wave_period&hourly=tide_height`);
-                const marineData = await marineRes.json();
-
-                // API de Vento
-                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=wind_speed_10m,wind_direction_10m`);
-                const weatherData = await weatherRes.json();
-
-                // Atualizar UI
-                status.innerText = `Pronto para a sessão!`;
-                dash.style.display = 'block';
-
-                document.getElementById('ondas').innerText = 
-                    `${marineData.current.wave_height}m | ${marineData.current.wave_period}s de ${obterDirecao(marineData.current.wave_direction)}`;
-                
-                document.getElementById('vento').innerText = 
-                    `${weatherData.current.wind_speed_10m} km/h de ${obterDirecao(weatherData.current.wind_direction_10m)}`;
-
-                // Pega a altura da maré da hora atual
-                const horaAtual = new Date().getHours();
-                const alturaMare = marineData.hourly.tide_height[horaAtual];
-                document.getElementById('mare').innerText = `${alturaMare.toFixed(2)}m`;
-
-            } catch (err) {
-                status.innerText = "❌ Erro ao ligar às APIs. Tenta de novo.";
-                console.error(err);
+            if (!navigator.geolocation) {
+                erroMsg.innerText = "O teu browser é pré-histórico, não tem GPS.";
+                return;
             }
-        }, (err) => {
-            document.getElementById('status').innerText = "❌ Precisas de ativar o GPS!";
+
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+
+                try {
+                    erroMsg.innerText = `GPS apanhado! A puxar os dados do mar...`;
+                    
+                    const resOndas = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height&timezone=auto`);
+                    if (!resOndas.ok) throw new Error("A API das ondas mandou-nos dar uma curva.");
+                    const dadosOndas = await resOndas.json();
+
+                    const resVento = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`);
+                    if (!resVento.ok) throw new Error("A API do vento está em baixo.");
+                    const dadosVento = await resVento.json();
+
+                    erroMsg.innerText = "";
+                    dash.style.display = "block";
+
+                    const alturaOnda = dadosOndas.current?.wave_height;
+                    const velVento = dadosVento.current_weather?.windspeed;
+
+                    document.getElementById('onda').innerText = alturaOnda !== undefined ? `${alturaOnda} metros` : 'Liso que nem uma lagoa';
+                    document.getElementById('vento').innerText = velVento !== undefined ? `${velVento} km/h` : 'Sem dados';
+
+                } catch (err) {
+                    erroMsg.innerText = `Deu raia na ligação: ${err.message}`;
+                }
+
+            }, (erroGPS) => {
+                erroMsg.innerText = `O GPS falhou: ${erroGPS.message}. Vai às definições dar permissão a esta porcaria!`;
+            }, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            });
         });
     </script>
 </body>
