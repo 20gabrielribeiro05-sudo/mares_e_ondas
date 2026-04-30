@@ -23,7 +23,6 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 20px; }
         h1 { font-weight: 600; font-size: 1.8rem; color: var(--title); margin: 0; }
 
-        /* Mode Switcher */
         .mode-switch { background: var(--card); padding: 5px; border-radius: 12px; border: 1px solid var(--border); display: flex; gap: 5px; }
         .mode-btn { padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; transition: 0.3s; background: transparent; color: var(--text); }
         .mode-btn.active { background: var(--tide-blue); color: #fff; }
@@ -39,8 +38,8 @@
 
         .compass-box { background: var(--bg); padding: 5px; border-radius: 10px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; }
         
-        .chart-container { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 20px; }
-        #waveChartArea { display: none; } /* Hidden in Canoeing mode */
+        .chart-container { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+        #waveChartArea { display: none; }
 
         .disclaimer { margin-top: 30px; font-size: 0.75rem; color: #484f58; text-align: center; }
     </style>
@@ -93,24 +92,24 @@
         en: {
             titleCan: "Canoe Conditions", titleSurf: "Surf Forecast",
             labelDay: "Select Day", labelSync: "Sync Today's High Tide",
-            chartTide: "Tide Level (m)", chartWind: "Avg Wind", chartGusts: "Gusts",
-            chartWave: "Wave Height (m)", chartPeriod: "Period (s)",
-            yWind: "km/h", yTide: "Height (m)", yWave: "Meters",
+            chartTide: "Tide Level", chartWind: "Avg Wind", chartGusts: "Gusts",
+            chartWave: "Wave Height", chartPeriod: "Period",
+            yWind: "km/h", yTide: "m", yWave: "m",
             disclaimer: "Data by Open-Meteo. Projections based on local sync. Safety first."
         },
         pt: {
             titleCan: "Condições Canoagem", titleSurf: "Previsão de Surf",
-            labelDay: "Dia", labelSync: "Sincronizar Preia-mar Hoje",
-            chartTide: "Maré (m)", chartWind: "Vento Médio", chartGusts: "Rajadas",
-            chartWave: "Ondulação (m)", chartPeriod: "Período (s)",
-            yWind: "km/h", yTide: "Altura (m)", yWave: "Metros",
+            labelDay: "Dia", labelSync: "Sincronizar Maré",
+            chartTide: "Maré", chartWind: "Vento", chartGusts: "Rajadas",
+            chartWave: "Ondulação", chartPeriod: "Período",
+            yWind: "km/h", yTide: "m", yWave: "m",
             disclaimer: "Dados via Open-Meteo. Marés projetadas via ajuste local. Segurança primeiro."
         }
     };
 
     let weatherData = null, marineData = null, daysMap = {}, charts = { main: null, wave: null };
     let currentLang = localStorage.getItem('preferredLang') || 'en';
-    let currentMode = 'canoeing'; // 'canoeing' or 'surf'
+    let currentMode = 'canoeing';
     const LUNAR_CYCLE = 12.4206;
 
     const updateUI = () => {
@@ -135,23 +134,32 @@
         const firstH = new Date(weatherData.hourly.time[0]).getTime();
         const labels = idxs.map(i => [`${new Date(weatherData.hourly.time[i]).getHours()}h`, ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'][Math.round(weatherData.hourly.wind_direction_10m[i] / 45) % 8]]);
         
-        // Tide & Wind Chart
         const tides = idxs.map(i => (2 + 1.5 * Math.sin((((new Date(weatherData.hourly.time[i]).getTime() - firstH) / 3600000) / LUNAR_CYCLE) * Math.PI * 2 + parseFloat(localStorage.getItem('tideOffset') || 0))).toFixed(2));
+        
         if (charts.main) charts.main.destroy();
         charts.main = new Chart(document.getElementById('mainChart'), {
             type: 'bar',
             data: {
                 labels: labels,
                 datasets: [
-                    { type: 'line', label: t.chartTide, data: tides, borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.1)', fill: true, tension: 0.4, yAxisID: 'yT', pointRadius: 0 },
-                    { type: 'line', label: t.chartGusts, data: idxs.map(i => weatherData.hourly.wind_gusts_10m[i]), borderColor: 'rgba(255,255,255,0.2)', borderDash: [5,5], yAxisID: 'yV', pointRadius: 0 },
-                    { type: 'bar', label: t.chartWind, data: idxs.map(i => weatherData.hourly.wind_speed_10m[i]), backgroundColor: idxs.map(i => getWindColor(weatherData.hourly.wind_speed_10m[i])), borderRadius: 4, yAxisID: 'yV' }
+                    { type: 'line', label: t.chartTide, data: tides, borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.1)', fill: true, tension: 0.4, yAxisID: 'yT', pointRadius: 0, pointStyle: 'circle' },
+                    { type: 'line', label: t.chartGusts, data: idxs.map(i => weatherData.hourly.wind_gusts_10m[i]), borderColor: 'rgba(255,255,255,0.4)', borderDash: [5,5], yAxisID: 'yV', pointRadius: 3, pointBackgroundColor: '#fff', pointStyle: 'circle' },
+                    { type: 'bar', label: t.chartWind, data: idxs.map(i => weatherData.hourly.wind_speed_10m[i]), backgroundColor: idxs.map(i => getWindColor(weatherData.hourly.wind_speed_10m[i])), borderRadius: 4, yAxisID: 'yV', pointStyle: 'circle' }
                 ]
             },
-            options: { scales: { yV: { position: 'left', title: { display: true, text: t.yWind } }, yT: { position: 'right', min: 0, max: 4, grid: { display: false }, title: { display: true, text: t.yTide, color: '#3498db' } } } }
+            options: { 
+                scales: { 
+                    yV: { position: 'left', title: { display: true, text: t.yWind } }, 
+                    yT: { position: 'right', min: 0, max: 4, grid: { display: false }, title: { display: true, text: t.yTide, color: '#3498db' } } 
+                },
+                plugins: {
+                    legend: {
+                        labels: { usePointStyle: true, pointStyle: 'circle', color: '#c9d1d9', padding: 20 }
+                    }
+                }
+            }
         });
 
-        // Wave Chart (Only Surf)
         if (currentMode === 'surf' && marineData) {
             if (charts.wave) charts.wave.destroy();
             charts.wave = new Chart(document.getElementById('waveChart'), {
@@ -159,11 +167,19 @@
                 data: {
                     labels: idxs.map(i => `${new Date(weatherData.hourly.time[i]).getHours()}h`),
                     datasets: [
-                        { type: 'line', label: t.chartPeriod, data: idxs.map(i => marineData.hourly.wave_period[i]), borderColor: '#e67e22', yAxisID: 'yP', tension: 0.3, pointRadius: 2 },
-                        { type: 'bar', label: t.chartWave, data: idxs.map(i => marineData.hourly.wave_height[i]), backgroundColor: 'rgba(155, 89, 182, 0.6)', borderRadius: 4, yAxisID: 'yW' }
+                        { type: 'line', label: t.chartPeriod, data: idxs.map(i => marineData.hourly.wave_period[i]), borderColor: '#e67e22', yAxisID: 'yP', tension: 0.3, pointRadius: 3, pointStyle: 'circle' },
+                        { type: 'bar', label: t.chartWave, data: idxs.map(i => marineData.hourly.wave_height[i]), backgroundColor: 'rgba(155, 89, 182, 0.6)', borderRadius: 4, yAxisID: 'yW', pointStyle: 'circle' }
                     ]
                 },
-                options: { scales: { yW: { position: 'left', title: { display: true, text: t.yWave } }, yP: { position: 'right', grid: { display: false }, title: { display: true, text: 'Seconds' } } } }
+                options: { 
+                    scales: { 
+                        yW: { position: 'left', title: { display: true, text: t.yWave } }, 
+                        yP: { position: 'right', grid: { display: false }, title: { display: true, text: 'sec' } } 
+                    },
+                    plugins: {
+                        legend: { labels: { usePointStyle: true, pointStyle: 'circle', color: '#c9d1d9' } }
+                    }
+                }
             });
         }
     };
