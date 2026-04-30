@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Condições de Surf e Vento</title>
-    <!-- Carregar a biblioteca do gráfico -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { 
@@ -29,10 +28,13 @@
             color: #333; 
             margin-bottom: 20px;
         }
+        #page-title {
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
-    <h2>Condições Atuais para a Tua Localização</h2>
+    <h2 id="page-title">Canoagem/Surf/Windsurf - A procurar a tua localização...</h2>
     <p id="status">A pedir permissão de GPS ao browser...</p>
     
     <div class="chart-container">
@@ -40,28 +42,40 @@
     </div>
 
     <script>
-        // Transforma os graus da direção do vento em letras
         function degToCompass(num) {
             const val = Math.floor((num / 22.5) + 0.5);
             const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
             return arr[(val % 16)];
         }
 
-        // Arranca com o pedido de localização mal a página abre
         if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition(fetchData, showError);
         } else {
             document.getElementById('status').innerText = "O teu browser é velho e não suporta GPS.";
+            document.getElementById('page-title').innerText = "Canoagem/Surf/Windsurf - Localização Desconhecida";
         }
 
         async function fetchData(position) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             
-            document.getElementById('status').innerText = 'A sacar dados meteorológicos...';
+            document.getElementById('status').innerText = 'A sacar dados meteorológicos e morada...';
 
             try {
-                // Vai buscar vento (Weather API) e marés (Marine API) para o dia atual
+                // Sacar o nome da localidade (Reverse Geocoding)
+                let locationName = "Localização Desconhecida";
+                try {
+                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                    const geoData = await geoRes.json();
+                    locationName = geoData.address.city || geoData.address.town || geoData.address.village || geoData.address.county || "Tua Zona";
+                } catch (e) {
+                    console.warn("A API do OpenStreetMap falhou.");
+                }
+
+                // Atualiza o título
+                document.getElementById('page-title').innerText = `Canoagem/Surf/Windsurf - ${locationName}`;
+
+                // Sacar meteorologia e marés
                 const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=windspeed_10m,winddirection_10m&timezone=auto&forecast_days=1`);
                 const marineRes = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=ocean_tide&timezone=auto&forecast_days=1`);
 
@@ -70,12 +84,11 @@
                 const weatherData = await weatherRes.json();
                 const marineData = await marineRes.json();
 
-                document.getElementById('status').style.display = 'none'; // Esconde a mensagem
+                document.getElementById('status').style.display = 'none';
 
                 const hourly = weatherData.hourly;
                 const marineHourly = marineData.hourly;
 
-                // Montar o eixo X: O Chart.js aceita arrays dentro de arrays para fazer linhas múltiplas (Hora em cima, Direção em baixo)
                 const labels = hourly.time.map((timeString, index) => {
                     const date = new Date(timeString);
                     const hours = date.getHours().toString().padStart(2, '0') + ':00';
@@ -96,10 +109,11 @@
 
         function showError(error) {
             let msg = "Erro desconhecido.";
-            if (error.code === 1) msg = "Velhinho, negaste o acesso à localização. Assim não adivinho.";
+            if (error.code === 1) msg = "Negaste o acesso à localização. Assim não adivinho.";
             if (error.code === 2) msg = "Não consegui aceder ao GPS.";
             if (error.code === 3) msg = "O pedido de GPS demorou demasiado tempo.";
             document.getElementById('status').innerText = msg;
+            document.getElementById('page-title').innerText = "Canoagem/Surf/Windsurf - GPS Desligado";
         }
 
         function drawChart(labels, windSpeeds, tides) {
@@ -150,7 +164,7 @@
                             display: true,
                             position: 'right',
                             title: { display: true, text: 'Maré (m)' },
-                            grid: { drawOnChartArea: false } // Para as linhas não ficarem uma grande confusão visual
+                            grid: { drawOnChartArea: false }
                         }
                     }
                 }
