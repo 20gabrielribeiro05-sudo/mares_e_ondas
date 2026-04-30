@@ -3,139 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marine Conditions & Tide Projection</title>
+    <title>Coastal Conditions | Pro Forecast</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --accent: #58a6ff;
+            --text: #c9d1d9;
+            --title: #f0f6fc;
+        }
+
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #0d1117;
-            color: #c9d1d9;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
             margin: 0;
             padding: 20px;
+            display: flex;
+            justify-content: center;
         }
-        .container { max-width: 1100px; margin: 0 auto; }
-        
-        .header {
+
+        .container { width: 100%; max-width: 1000px; }
+
+        /* Header & Language */
+        .top-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
         }
 
-        h1 { font-weight: 300; color: #f0f6fc; margin: 0; flex-grow: 1; text-align: center; }
-        
-        #status { text-align: center; color: #8b949e; font-size: 0.9em; margin-bottom: 20px; }
-        
-        .dashboard-controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 40px; /* Increased gap to separate compass */
-            justify-content: center;
-            align-items: flex-end; /* Aligns compass with the inputs/selects */
-            background: #161b22;
-            padding: 20px;
+        h1 {
+            font-weight: 600;
+            font-size: 2rem;
+            color: var(--title);
+            margin: 0;
+            background: linear-gradient(90deg, #fff, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        select, input {
+            background: var(--bg);
+            color: #fff;
+            border: 1px solid var(--border);
             border-radius: 8px;
-            border: 1px solid #30363d;
-            margin-bottom: 25px;
+            padding: 10px 15px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        select:hover, input:hover { border-color: var(--accent); }
+
+        /* Status Loader */
+        #status {
+            background: rgba(88, 166, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: 400;
+        }
+
+        /* Controls Section */
+        .dashboard-controls {
             display: none;
+            grid-template-columns: auto 1fr 1.5fr;
+            gap: 20px;
+            align-items: center;
+            background: var(--card);
+            padding: 25px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
         }
 
         .control-group { display: flex; flex-direction: column; gap: 8px; }
+        .control-group label { font-size: 0.75rem; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
 
-        label { font-size: 0.85em; font-weight: 600; color: #8b949e; text-transform: uppercase; }
-        
-        select, input {
-            padding: 10px;
-            background: #0d1117;
-            color: #fff;
-            border: 1px solid #30363d;
-            border-radius: 4px;
-            outline: none;
-            height: 42px;
-            box-sizing: border-box;
-        }
-
-        /* Compass Box - Now standalone on the far left */
+        /* Compass */
         .compass-box {
+            background: var(--bg);
+            padding: 8px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #0d1117;
-            padding: 2px;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            height: 42px;
-            width: 42px;
-            box-sizing: border-box;
-            margin-right: 20px; /* Extra spacing from the controls */
         }
-        .compass-svg {
-            width: 32px;
-            height: 32px;
+        .compass-svg { width: 45px; height: 45px; }
+
+        /* Main Chart Area */
+        .chart-container {
+            background: var(--card);
+            padding: 25px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
         }
 
-        .chart-container {
-            background: #161b22;
-            padding: 25px;
-            border-radius: 12px;
-            border: 1px solid #30363d;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        /* Quick Instructions Guide */
+        .guide-bar {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 25px;
+            font-size: 0.8rem;
+            color: #8b949e;
         }
+        .guide-step { display: flex; align-items: center; gap: 8px; }
+        .step-num { background: var(--border); color: #fff; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; }
 
         .disclaimer {
-            margin-top: 30px;
-            font-size: 0.8em;
-            color: #6e7681;
+            margin-top: 40px;
+            font-size: 0.75rem;
+            color: #484f58;
             text-align: center;
-            border-top: 1px solid #30363d;
-            padding-top: 20px;
-            line-height: 1.6;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-controls { grid-template-columns: 1fr; text-align: center; justify-items: center; }
+            .header { flex-direction: column; gap: 20px; }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="header">
-        <div class="lang-switch">
-            <select id="langPicker">
-                <option value="en">English</option>
-                <option value="pt">Português</option>
-            </select>
-        </div>
+    <div class="top-bar">
+        <select id="langPicker">
+            <option value="en">English</option>
+            <option value="pt">Português</option>
+        </select>
         <h1 id="ui-title">Coastal Forecast</h1>
-        <div style="width: 80px;"></div>
+        <div style="width: 70px;"></div> 
     </div>
 
-    <div id="status">Establishing connection...</div>
+    <div id="status">Establishing connection to satellites...</div>
 
     <div class="dashboard-controls" id="controls">
-        
-        <!-- Compass on the far left -->
-        <div class="compass-box" title="North Reference">
+        <!-- North Reference -->
+        <div class="compass-box">
             <svg class="compass-svg" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="45" fill="none" stroke="#30363d" stroke-width="2"/>
-                <path d="M50 10 L40 50 L50 40 L60 50 Z" fill="#e74c3c"/>
-                <path d="M50 90 L40 50 L50 60 L60 50 Z" fill="#c9d1d9"/>
-                <text x="50" y="26" fill="#f0f6fc" font-size="14" font-weight="bold" text-anchor="middle">N</text>
+                <path d="M50 10 L42 50 L50 42 L58 50 Z" fill="#ff7b72"/>
+                <path d="M50 90 L42 50 L50 58 L58 50 Z" fill="#c9d1d9"/>
+                <text x="50" y="28" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">N</text>
             </svg>
         </div>
 
-        <!-- Date Control Group -->
+        <!-- Date Selection -->
         <div class="control-group">
-            <label id="ui-label-day">Forecast Day</label>
+            <label id="ui-label-day">Select Day</label>
             <select id="dayPicker"></select>
         </div>
 
-        <!-- Tide Sync Control Group -->
+        <!-- Tide Sync -->
         <div class="control-group">
-            <label id="ui-label-sync">Sync Tide (High Tide)</label>
+            <label id="ui-label-sync">Sync High Tide (Real Time Today)</label>
             <input type="time" id="tideSync" value="12:00">
         </div>
     </div>
 
     <div class="chart-container">
         <canvas id="mainChart"></canvas>
+        
+        <div class="guide-bar" id="ui-guide">
+            <div class="guide-step"><span class="step-num">1</span> <span id="guide-1">Enable Location</span></div>
+            <div class="guide-step"><span class="step-num">2</span> <span id="guide-2">Choose Day</span></div>
+            <div class="guide-step"><span class="step-num">3</span> <span id="guide-3">Adjust Tide</span></div>
+        </div>
     </div>
 
     <div class="disclaimer" id="ui-disclaimer"></div>
@@ -145,168 +186,135 @@
     const translations = {
         en: {
             title: "Coastal Forecast",
-            statusLoc: "Detecting location...",
-            statusData: "Retrieving global data...",
+            statusData: "Loading local data...",
+            statusLoc: "Please enable location services.",
             labelDay: "Forecast Day",
-            labelSync: "Sync Tide (High Tide Today)",
+            labelSync: "Sync Today's High Tide",
+            guide1: "Allow GPS",
+            guide2: "Select Day",
+            guide3: "Set Tide Time",
             chartTide: "Tide Height (m)",
-            chartWind: "Avg. Wind (km/h)",
-            chartGusts: "Gusts (km/h)",
-            yAxisWind: "Wind Speed (km/h)",
-            yAxisTide: "Height (m)",
-            disclaimer: "<strong>Note:</strong> Meteorological data is provided by the Open-Meteo API. Tides for subsequent days are mathematically modeled based on your initial sync. These projections are for informational purposes only."
+            chartWind: "Avg Wind",
+            chartGusts: "Gusts",
+            yWind: "Speed (km/h)",
+            yTide: "Height (m)",
+            disclaimer: "Data by Open-Meteo API. Tide projections are calculated mathematically based on your sync. Reference only."
         },
         pt: {
             title: "Previsão Costeira",
-            statusLoc: "A detetar localização...",
-            statusData: "A obter dados globais...",
+            statusData: "A carregar dados locais...",
+            statusLoc: "Por favor, ativa a localização.",
             labelDay: "Dia da Previsão",
-            labelSync: "Sincronizar Maré (Preia-mar hoje)",
-            chartTide: "Altura da Maré (m)",
-            chartWind: "Vento Médio (km/h)",
-            chartGusts: "Rajadas (km/h)",
-            yAxisWind: "Velocidade do Vento (km/h)",
-            yAxisTide: "Altura (m)",
-            disclaimer: "<strong>Nota:</strong> Os dados meteorológicos são fornecidos pela API Open-Meteo. As marés são modeladas matematicamente com base na sincronização inicial. Estas projeções são informativas apenas."
+            labelSync: "Sincronizar Preia-mar Hoje",
+            guide1: "Ativar GPS",
+            guide2: "Escolher Dia",
+            guide3: "Ajustar Maré",
+            chartTide: "Maré (m)",
+            chartWind: "Vento Médio",
+            chartGusts: "Rajadas",
+            yWind: "Velocidade (km/h)",
+            yTide: "Altura (m)",
+            disclaimer: "Dados via API Open-Meteo. Projeções de maré calculadas matematicamente com base no seu ajuste. Apenas para referência."
         }
     };
 
-    let weatherData = null;
-    let daysMap = {};
-    let activeChart = null;
+    let weatherData = null, daysMap = {}, activeChart = null;
     let currentLang = localStorage.getItem('preferredLang') || 'en';
     const LUNAR_CYCLE = 12.4206;
 
-    const langPicker = document.getElementById('langPicker');
-    langPicker.value = currentLang;
+    document.getElementById('langPicker').value = currentLang;
 
-    function updateUIText() {
+    function updateUI() {
         const t = translations[currentLang];
         document.getElementById('ui-title').innerText = t.title;
         document.getElementById('ui-label-day').innerText = t.labelDay;
         document.getElementById('ui-label-sync').innerText = t.labelSync;
+        document.getElementById('guide-1').innerText = t.guide1;
+        document.getElementById('guide-2').innerText = t.guide2;
+        document.getElementById('guide-3').innerText = t.guide3;
         document.getElementById('ui-disclaimer').innerHTML = t.disclaimer;
         if (weatherData) render(document.getElementById('dayPicker').value);
     }
 
-    langPicker.addEventListener('change', (e) => {
+    document.getElementById('langPicker').onchange = (e) => {
         currentLang = e.target.value;
         localStorage.setItem('preferredLang', currentLang);
-        updateUIText();
-    });
+        updateUI();
+    };
 
     let savedOffset = localStorage.getItem('tideOffset') || 0;
     document.getElementById('tideSync').value = localStorage.getItem('tideTime') || "12:00";
 
     function getWindIcon(deg) {
-        const arrows = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
-        return arrows[Math.round(deg / 45) % 8];
+        return ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'][Math.round(deg / 45) % 8];
     }
 
     function render(dateKey) {
-        const t = translations[currentLang];
-        const indices = daysMap[dateKey];
+        const t = translations[currentLang], indices = daysMap[dateKey];
         const firstHour = new Date(weatherData.hourly.time[0]).getTime();
         
-        const labels = indices.map(i => {
-            const date = new Date(weatherData.hourly.time[i]);
-            return [`${date.getHours()}:00`, getWindIcon(weatherData.hourly.wind_direction_10m[i])];
-        });
-
-        const windSpeeds = indices.map(i => weatherData.hourly.wind_speed_10m[i]);
-        const windGusts = indices.map(i => weatherData.hourly.wind_gusts_10m[i]);
-
-        const tideHeights = indices.map(i => {
-            const currentTime = new Date(weatherData.hourly.time[i]).getTime();
-            const hoursSinceEpoch = (currentTime - firstHour) / 3600000;
-            const phase = (hoursSinceEpoch / LUNAR_CYCLE) * Math.PI * 2;
+        const labels = indices.map(i => [`${new Date(weatherData.hourly.time[i]).getHours()}h`, getWindIcon(weatherData.hourly.wind_direction_10m[i])]);
+        const speeds = indices.map(i => weatherData.hourly.wind_speed_10m[i]);
+        const gusts = indices.map(i => weatherData.hourly.wind_gusts_10m[i]);
+        const tides = indices.map(i => {
+            const phase = (((new Date(weatherData.hourly.time[i]).getTime() - firstHour) / 3600000) / LUNAR_CYCLE) * Math.PI * 2;
             return (2 + 1.5 * Math.sin(phase + parseFloat(savedOffset))).toFixed(2);
         });
 
         if (activeChart) activeChart.destroy();
-        const ctx = document.getElementById('mainChart').getContext('2d');
-        activeChart = new Chart(ctx, {
+        activeChart = new Chart(document.getElementById('mainChart').getContext('2d'), {
             type: 'bar',
             data: {
                 labels: labels,
                 datasets: [
-                    {
-                        type: 'line', label: t.chartTide, data: tideHeights,
-                        borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                        fill: true, tension: 0.4, yAxisID: 'yT', pointRadius: 0
-                    },
-                    {
-                        type: 'line', label: t.chartGusts, data: windGusts,
-                        borderColor: 'rgba(255, 255, 255, 0.4)', borderDash: [5,5], yAxisID: 'yW', pointRadius: 2
-                    },
-                    {
-                        type: 'bar', label: t.chartWind, data: windSpeeds,
-                        backgroundColor: windSpeeds.map(s => s < 15 ? '#2ecc71' : (s < 30 ? '#f1c40f' : '#e74c3c')),
-                        borderRadius: 4, yAxisID: 'yW'
-                    }
+                    { type: 'line', label: t.chartTide, data: tides, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.4, yAxisID: 'yT', pointRadius: 0 },
+                    { type: 'line', label: t.chartGusts, data: gusts, borderColor: 'rgba(255,255,255,0.3)', borderDash: [5,5], yAxisID: 'yV', pointRadius: 2 },
+                    { type: 'bar', label: t.chartWind, data: speeds, backgroundColor: speeds.map(s => s < 15 ? '#3fb950' : (s < 30 ? '#d29922' : '#f85149')), borderRadius: 6, yAxisID: 'yV' }
                 ]
             },
             options: {
                 responsive: true,
                 scales: {
-                    yW: { position: 'left', title: { display: true, text: t.yAxisWind, color: '#fff' } },
-                    yT: { position: 'right', title: { display: true, text: t.yAxisTide, color: '#3498db' }, grid: { display: false }, min: 0, max: 4 }
+                    yV: { position: 'left', title: { display: true, text: t.yWind, color: '#8b949e' }, grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+                    yT: { position: 'right', grid: { display: false }, min: 0, max: 4, ticks: { color: '#58a6ff' } }
                 },
-                plugins: { legend: { labels: { color: '#c9d1d9' } } }
+                plugins: { legend: { labels: { color: '#c9d1d9', usePointStyle: true, font: { size: 12 } } } }
             }
         });
     }
 
-    function calculateOffset(timeString) {
-        const [hours, mins] = timeString.split(':');
-        const now = new Date();
-        const highTideDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, mins);
-        const firstHourDate = new Date(weatherData.hourly.time[0]);
-        const diffInHours = (highTideDate - firstHourDate) / 3600000;
-        const newOffset = (Math.PI / 2) - ((diffInHours / LUNAR_CYCLE) * Math.PI * 2);
-        savedOffset = newOffset;
-        localStorage.setItem('tideOffset', newOffset);
-        localStorage.setItem('tideTime', timeString);
-        if(weatherData) render(document.getElementById('dayPicker').value);
+    function syncTide(timeStr) {
+        const [h, m] = timeStr.split(':'), now = new Date();
+        const diff = (new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m) - new Date(weatherData.hourly.time[0])) / 3600000;
+        savedOffset = (Math.PI / 2) - ((diff / LUNAR_CYCLE) * Math.PI * 2);
+        localStorage.setItem('tideOffset', savedOffset);
+        localStorage.setItem('tideTime', timeStr);
+        render(document.getElementById('dayPicker').value);
     }
 
-    updateUIText();
+    updateUI();
 
     navigator.geolocation.getCurrentPosition(async (p) => {
         const { latitude: lat, longitude: lon } = p.coords;
-        document.getElementById('status').innerText = translations[currentLang].statusData;
-
         try {
             const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto`);
             weatherData = await res.json();
-
-            weatherData.hourly.time.forEach((t, i) => {
-                const d = t.split('T')[0];
-                if (!daysMap[d]) daysMap[d] = [];
-                daysMap[d].push(i);
-            });
-
+            weatherData.hourly.time.forEach((t, i) => { const d = t.split('T')[0]; if (!daysMap[d]) daysMap[d] = []; daysMap[d].push(i); });
+            
             const sel = document.getElementById('dayPicker');
             Object.keys(daysMap).forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d;
-                const dateObj = new Date(d);
-                opt.innerText = dateObj.toLocaleDateString(currentLang === 'en' ? 'en-GB' : 'pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
+                const opt = document.createElement('option'); opt.value = d;
+                opt.innerText = new Date(d).toLocaleDateString(currentLang === 'en' ? 'en-GB' : 'pt-PT', { weekday: 'short', day: 'numeric' });
                 sel.appendChild(opt);
             });
 
             document.getElementById('status').style.display = 'none';
-            document.getElementById('controls').style.display = 'flex';
-
-            const tideInput = document.getElementById('tideSync');
-            tideInput.addEventListener('change', (e) => calculateOffset(e.target.value));
-            
-            calculateOffset(tideInput.value);
+            document.getElementById('controls').style.display = 'grid';
+            syncTide(document.getElementById('tideSync').value);
+            document.getElementById('tideSync').onchange = (e) => syncTide(e.target.value);
             sel.onchange = (e) => render(e.target.value);
-        } catch (e) { document.getElementById('status').innerText = "Service unavailable."; }
-    }, () => { 
-        document.getElementById('status').innerText = translations[currentLang].statusLoc; 
-    });
+        } catch (e) { document.getElementById('status').innerText = "API Offline."; }
+    }, () => { document.getElementById('status').innerText = translations[currentLang].statusLoc; });
 </script>
 
 </body>
