@@ -36,13 +36,10 @@
         <canvas id="windTideChart"></canvas>
     </div>
 
-    <div class="chart-wrapper">
-        <canvas id="waveChart"></canvas>
-    </div>
-
     <script>
-        // Função para converter graus do vento em setas apontando a direção para onde o vento vai
+        // Função para converter graus do vento em setas apontando a direção
         function getWindDirection(degree) {
+            if (degree === null || degree === undefined) return '-';
             const arrows = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
             return arrows[Math.round(degree / 45) % 8];
         }
@@ -57,29 +54,24 @@
         navigator.geolocation.getCurrentPosition(async (position) => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            document.getElementById('status').innerText = `Localização encontrada: ${lat.toFixed(4)}, ${lon.toFixed(4)}. A sacar dados...`;
+            document.getElementById('status').innerText = `Localização: ${lat.toFixed(4)}, ${lon.toFixed(4)}. A sacar dados...`;
 
             try {
                 // Sacar Vento da Open-Meteo
-                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=windspeed_10m,windgusts_10m,winddirection_10m&timezone=auto`);
+                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto`);
                 const weatherData = await weatherRes.json();
 
-                // Sacar Ondas da Open-Meteo Marine
-                const marineRes = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=wave_height&timezone=auto`);
-                const marineData = await marineRes.json();
+                if (weatherData.error) {
+                    throw new Error("Erro na API do tempo: " + weatherData.reason);
+                }
 
                 // Usar apenas as próximas 24 horas
                 const hours = weatherData.hourly.time.slice(0, 24).map(t => new Date(t).getHours() + 'h');
-                const windSpeeds = weatherData.hourly.windspeed_10m.slice(0, 24);
-                const windGusts = weatherData.hourly.windgusts_10m.slice(0, 24);
-                const windDirs = weatherData.hourly.winddirection_10m.slice(0, 24).map(getWindDirection);
+                const windSpeeds = weatherData.hourly.wind_speed_10m.slice(0, 24);
+                const windGusts = weatherData.hourly.wind_gusts_10m.slice(0, 24);
+                const windDirs = weatherData.hourly.wind_direction_10m.slice(0, 24).map(getWindDirection);
                 
-                let waveHeights = [];
-                if (marineData.hourly && marineData.hourly.wave_height) {
-                    waveHeights = marineData.hourly.wave_height.slice(0, 24);
-                } else {
-                    document.getElementById('status').innerText += " (Sem dados de ondas para estas coordenadas, deves estar longe da costa!)";
-                }
+                document.getElementById('status').innerText = "Tudo pronto.";
 
                 // Eixo X com dupla linha: Hora e Direção do vento por baixo
                 const labels = hours.map((h, i) => [h, windDirs[i]]);
@@ -88,9 +80,7 @@
                 // Gerar a linha da Maré falsa (ciclo de 12h25m, oscila entre 0.5m e 3.5m)
                 const tideSim = Array.from({length: 24}, (_, i) => (2 + 1.5 * Math.sin(i * (Math.PI * 2 / 12.4))).toFixed(2));
 
-                document.getElementById('status').innerText = "Tudo pronto.";
-
-                // GRÁFICO 1: Vento e Marés
+                // GRÁFICO: Vento e Marés
                 const ctx1 = document.getElementById('windTideChart').getContext('2d');
                 new Chart(ctx1, {
                     type: 'bar',
@@ -159,46 +149,12 @@
                     }
                 });
 
-                // GRÁFICO 2: Ondas
-                if (waveHeights.length > 0) {
-                    const ctx2 = document.getElementById('waveChart').getContext('2d');
-                    new Chart(ctx2, {
-                        type: 'bar',
-                        data: {
-                            labels: hours,
-                            datasets: [{
-                                label: 'Altura da Onda (m)',
-                                data: waveHeights,
-                                backgroundColor: 'rgba(155, 89, 182, 0.8)', // Roxo
-                                borderRadius: 5
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                title: { display: true, text: 'Ondulação', color: '#fff', font: { size: 18 } },
-                                legend: { labels: { color: '#e0e0e0' } }
-                            },
-                            scales: {
-                                x: { ticks: { color: '#e0e0e0' }, grid: { color: 'rgba(255,255,255,0.1)' } },
-                                y: {
-                                    title: { display: true, text: 'Altura (m)', color: '#fff' },
-                                    ticks: { color: '#e0e0e0' },
-                                    grid: { color: 'rgba(255,255,255,0.1)' }
-                                }
-                            }
-                        }
-                    });
-                } else {
-                    document.getElementById('waveChart').style.display = 'none';
-                }
-
             } catch (error) {
-                document.getElementById('status').innerText = "Deu merda a sacar os dados. Tenta recarregar a página.";
+                document.getElementById('status').innerText = "Continuou a dar bronca. Erro: " + error.message;
                 console.error(error);
             }
         }, (error) => {
-            document.getElementById('status').innerText = "Precisas de permitir a localização no browser para isto funcionar, chefe.";
+            document.getElementById('status').innerText = "Deu erro no GPS. Precisas de permitir a localização no browser, chefe.";
         });
     </script>
 </body>
