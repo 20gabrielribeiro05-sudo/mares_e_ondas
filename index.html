@@ -54,7 +54,7 @@
             outline: none;
         }
 
-        /* Compass Style - Now inside controls */
+        /* Compass Style - Left aligned */
         .compass-box {
             display: flex;
             align-items: center;
@@ -105,11 +105,10 @@
     <div id="status">Establishing connection...</div>
 
     <div class="dashboard-controls" id="controls">
-        <!-- Forecast Day Group with Compass -->
+        <!-- Forecast Day Group with Compass on the LEFT -->
         <div class="control-group">
             <label id="ui-label-day">Forecast Day</label>
             <div class="control-with-compass">
-                <select id="dayPicker"></select>
                 <div class="compass-box" title="North Reference">
                     <svg class="compass-svg" viewBox="0 0 100 100">
                         <circle cx="50" cy="50" r="45" fill="none" stroke="#30363d" stroke-width="2"/>
@@ -118,6 +117,7 @@
                         <text x="50" y="26" fill="#f0f6fc" font-size="14" font-weight="bold" text-anchor="middle">N</text>
                     </svg>
                 </div>
+                <select id="dayPicker"></select>
             </div>
         </div>
 
@@ -147,7 +147,7 @@
             chartGusts: "Gusts (km/h)",
             yAxisWind: "Wind Speed (km/h)",
             yAxisTide: "Height (m)",
-            disclaimer: "<strong>Note:</strong> Meteorological data is provided by the Open-Meteo API. Tides for subsequent days are mathematically modeled based on your initial sync. Projections are for informational purposes only."
+            disclaimer: "<strong>Note:</strong> Meteorological data is provided by the Open-Meteo API. Tides for subsequent days are mathematically modeled using astronomical cycles (M2 constituent) based on your initial sync. These projections are for informational purposes only."
         },
         pt: {
             title: "Previsão Costeira",
@@ -160,7 +160,7 @@
             chartGusts: "Rajadas (km/h)",
             yAxisWind: "Velocidade do Vento (km/h)",
             yAxisTide: "Altura (m)",
-            disclaimer: "<strong>Nota:</strong> Os dados meteorológicos são fornecidos pela API Open-Meteo. As marés são modeladas matematicamente com base na sincronização inicial. Projeções informativas apenas."
+            disclaimer: "<strong>Nota:</strong> Os dados meteorológicos são fornecidos pela API Open-Meteo. As marés são modeladas matematicamente (constituinte M2) com base na sua sincronização inicial. Estas projeções são informativas apenas."
         }
     };
 
@@ -230,7 +230,7 @@
                     },
                     {
                         type: 'line', label: t.chartGusts, data: windGusts,
-                        borderColor: 'rgba(255,255,255,0.4)', borderDash: [5,5], yAxisID: 'yW', pointRadius: 2
+                        borderColor: 'rgba(255, 255, 255, 0.4)', borderDash: [5,5], yAxisID: 'yW', pointRadius: 2
                     },
                     {
                         type: 'bar', label: t.chartWind, data: windSpeeds,
