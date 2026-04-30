@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Condições de Surf e Vento</title>
+    <title>Condições de Surf e Vento - Lisboa</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { 
@@ -34,92 +34,44 @@
     </style>
 </head>
 <body>
-    <h2 id="page-title">Canoagem/Surf/Windsurf - A procurar a tua localização...</h2>
-    <p id="status">A pedir permissão de GPS ao browser...</p>
+    <h2 id="page-title">Canoagem/Surf/Windsurf - Lisboa (Costa)</h2>
+    <p id="status">A sacar os dados...</p>
     
     <div class="chart-container">
         <canvas id="surfChart"></canvas>
     </div>
 
     <script>
+        // Transforma os graus da direção do vento em letras
         function degToCompass(num) {
             const val = Math.floor((num / 22.5) + 0.5);
             const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
             return arr[(val % 16)];
         }
 
-        if ("geolocation" in navigator) {
-            navigator.geolocation.getCurrentPosition(fetchData, showError);
-        } else {
-            document.getElementById('status').innerText = "O teu browser não tem GPS.";
-        }
-
-        // Radar corrigido: agora procura em 8 direções (incluindo diagonais!)
-        async function getTideTeimoso(lat, lon) {
-            // Distâncias: ~5km, 11km, 16km, 22km, 27km, 33km
-            const steps = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3]; 
-
-            // Primeiro tenta no local exato
-            try {
-                let res = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=ocean_tide&timezone=auto&forecast_days=1`);
-                if (res.ok) {
-                    let data = await res.json();
-                    if (!data.error && data.hourly && data.hourly.ocean_tide) return data.hourly.ocean_tide;
-                }
-            } catch(e) {}
-
-            // Se falhar, começa a abrir o círculo
-            for (let s of steps) {
-                const offsets = [
-                    [s, 0], [-s, 0], [0, s], [0, -s],       // Norte, Sul, Este, Oeste
-                    [s, s], [s, -s], [-s, s], [-s, -s]      // NE, NW, SE, Sudoeste (onde está o mar!)
-                ];
-
-                for (let off of offsets) {
-                    let testLat = lat + off[0];
-                    let testLon = lon + off[1];
-                    try {
-                        let res = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${testLat}&longitude=${testLon}&hourly=ocean_tide&timezone=auto&forecast_days=1`);
-                        if (res.ok) {
-                            let data = await res.json();
-                            if (!data.error && data.hourly && data.hourly.ocean_tide) {
-                                console.log(`Maré encontrada na diagonal perfeita. Distância aprox: ${s * 111}km.`);
-                                return data.hourly.ocean_tide; 
-                            }
-                        }
-                    } catch (e) {}
-                }
-            }
-            return null; 
-        }
-
-        async function fetchData(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
+        async function fetchData() {
+            // Coordenadas fixas para Lisboa (zona de Cascais/Carcavelos, onde a API de marés funciona a 100%)
+            const lat = 38.69;
+            const lon = -9.43;
             
-            document.getElementById('status').innerText = 'A processar coordenadas...';
-
             try {
-                let locationName = "Localização Desconhecida";
-                try {
-                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
-                    const geoData = await geoRes.json();
-                    locationName = geoData.address.city || geoData.address.town || geoData.address.village || geoData.address.county || "Tua Zona";
-                } catch (e) {}
-
-                document.getElementById('page-title').innerText = `Canoagem/Surf/Windsurf - ${locationName}`;
-                document.getElementById('status').innerText = 'A varrer o mapa à procura de marés (radar com diagonais)...';
-
+                // Vai buscar vento e marés direto e reto
                 const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=windspeed_10m,winddirection_10m&timezone=auto&forecast_days=1`);
-                if (!weatherRes.ok) throw new Error("A API do vento pifou.");
+                const marineRes = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=ocean_tide&timezone=auto&forecast_days=1`);
+
+                if (!weatherRes.ok) throw new Error("A API do vento falhou.");
+                if (!marineRes.ok) throw new Error("A API das marés falhou.");
+
                 const weatherData = await weatherRes.json();
+                const marineData = await marineRes.json();
 
-                // Busca radar a 360 graus
-                const tides = await getTideTeimoso(lat, lon);
-
+                // Esconde a mensagem a dizer que está a carregar
                 document.getElementById('status').style.display = 'none';
 
                 const hourly = weatherData.hourly;
+                const marineHourly = marineData.hourly;
+
+                // Montar o eixo X (Hora em cima, Direção em baixo)
                 const labels = hourly.time.map((timeString, index) => {
                     const date = new Date(timeString);
                     const hours = date.getHours().toString().padStart(2, '0') + ':00';
@@ -128,77 +80,42 @@
                 });
 
                 const windSpeeds = hourly.windspeed_10m;
+                const tides = marineHourly.ocean_tide;
 
                 drawChart(labels, windSpeeds, tides);
 
             } catch (err) {
-                document.getElementById('status').innerText = 'Erro brutal a carregar os dados. Vê a consola.';
+                document.getElementById('status').innerText = 'Deu barraca a carregar os dados. Vê a consola.';
                 console.error(err);
             }
         }
 
-        function showError(error) {
-            let msg = "Erro desconhecido.";
-            if (error.code === 1) msg = "Sem permissão de GPS não fazemos nada.";
-            if (error.code === 2) msg = "O GPS falhou.";
-            if (error.code === 3) msg = "Demorou demasiado tempo.";
-            document.getElementById('status').innerText = msg;
-            document.getElementById('page-title').innerText = "Canoagem/Surf/Windsurf - Sem GPS";
-        }
-
         function drawChart(labels, windSpeeds, tides) {
             const ctx = document.getElementById('surfChart').getContext('2d');
-            
-            const datasets = [{
-                label: 'Vento (km/h)',
-                data: windSpeeds,
-                borderColor: 'rgba(54, 162, 235, 1)',
-                backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                yAxisID: 'y-wind',
-                tension: 0.3,
-                fill: true
-            }];
-
-            const scales = {
-                x: {
-                    title: { display: true, text: 'Hora & Direção do Vento' }
-                },
-                'y-wind': {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: { display: true, text: 'Vento (km/h)' }
-                }
-            };
-
-            if (tides && tides.length > 0) {
-                datasets.push({
-                    label: 'Altura da Maré (m)',
-                    data: tides,
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                    yAxisID: 'y-tide',
-                    tension: 0.4,
-                    fill: true
-                });
-                
-                scales['y-tide'] = {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    title: { display: true, text: 'Maré (m)' },
-                    grid: { drawOnChartArea: false }
-                };
-            } else {
-                document.getElementById('status').style.display = 'block';
-                document.getElementById('status').innerText = "Vento carregado. Mas o radar varreu nas diagonais e continuou a não encontrar maré. Vai lá benzer-te.";
-            }
-
             new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
-                    datasets: datasets
+                    datasets: [
+                        {
+                            label: 'Vento (km/h)',
+                            data: windSpeeds,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            yAxisID: 'y-wind',
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Altura da Maré (m)',
+                            data: tides,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            yAxisID: 'y-tide',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
@@ -206,10 +123,30 @@
                         mode: 'index',
                         intersect: false,
                     },
-                    scales: scales
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Hora & Direção do Vento' }
+                        },
+                        'y-wind': {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Vento (km/h)' }
+                        },
+                        'y-tide': {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Maré (m)' },
+                            grid: { drawOnChartArea: false } 
+                        }
+                    }
                 }
             });
         }
+
+        // Arranca o processo assim que a página é lida
+        window.onload = fetchData;
     </script>
 </body>
 </html>
