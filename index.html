@@ -3,237 +3,207 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather & Tide Forecast</title>
+    <title>Marine Conditions & Tide Projection</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: #0f111a;
-            color: #ffffff;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
             margin: 0;
             padding: 20px;
-            text-align: center;
         }
-        .container {
-            max-width: 1100px;
-            margin: 0 auto;
-        }
-        h1 {
-            font-weight: 300;
-            letter-spacing: 1px;
-            margin-bottom: 30px;
-        }
-        #status {
-            color: #8a8d91;
-            font-size: 0.9em;
-            margin-bottom: 20px;
-        }
-        .controls {
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 { font-weight: 300; color: #f0f6fc; text-align: center; }
+        
+        #status { text-align: center; color: #8b949e; font-size: 0.9em; margin-bottom: 20px; }
+        
+        .dashboard-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            background: #161b22;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #30363d;
             margin-bottom: 25px;
             display: none;
         }
-        select {
-            padding: 12px 25px;
-            font-size: 15px;
-            background-color: #1c1f2b;
+
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 0.85em; font-weight: 600; color: #8b949e; text-transform: uppercase; }
+        
+        select, input {
+            padding: 10px;
+            background: #0d1117;
             color: #fff;
-            border: 1px solid #3d4251;
-            border-radius: 6px;
-            cursor: pointer;
+            border: 1px solid #30363d;
+            border-radius: 4px;
             outline: none;
-            transition: border-color 0.3s;
         }
-        select:focus {
-            border-color: #3498db;
-        }
-        .chart-wrapper {
+
+        .chart-container {
             background: #161b22;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            margin-bottom: 20px;
-        }
-        .disclaimer {
-            font-size: 0.85em;
-            color: #6a737d;
-            line-height: 1.6;
-            margin-top: 30px;
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
             padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .disclaimer {
+            margin-top: 30px;
+            font-size: 0.8em;
+            color: #6e7681;
+            text-align: center;
             border-top: 1px solid #30363d;
+            padding-top: 20px;
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1>Wind & Tide Conditions</h1>
-        
-        <div id="status">Requesting geolocation access...</div>
+<div class="container">
+    <h1>Coastal Forecast</h1>
+    <div id="status">Establishing connection to GPS and weather satellites...</div>
 
-        <div class="controls" id="controls">
-            <label for="dayPicker" style="margin-right: 15px; font-weight: 500;">Forecast Date:</label>
+    <div class="dashboard-controls" id="controls">
+        <div class="control-group">
+            <label>Forecast Day</label>
             <select id="dayPicker"></select>
         </div>
-
-        <div class="chart-wrapper">
-            <canvas id="mainChart"></canvas>
-        </div>
-
-        <div class="disclaimer">
-            <strong>Note:</strong> Meteorological data is provided by the Open-Meteo API. Tides for subsequent days are mathematically modeled using astronomical cycles ($M2$ constituent) based on the initial observation. These projections are for informational purposes only and may not correspond to actual real-time local conditions. For navigation, safety-critical activities, or precise coastal planning, please consult official hydrographic services.
+        <div class="control-group">
+            <label>Sync Tide (Today's High Tide)</label>
+            <input type="time" id="tideSync" value="12:00">
         </div>
     </div>
 
-    <script>
-        let myChart = null;
-        let weatherData = null;
-        let daysMap = {};
+    <div class="chart-container">
+        <canvas id="mainChart"></canvas>
+    </div>
+
+    <div class="disclaimer">
+        <strong>Data Accuracy Note:</strong> Wind speed and direction are live API data. Because astronomical tide phases vary by local geography, please calibrate the "Sync Tide" input using a local tide table for your current location. Once synced, subsequent days are calculated using the 12.42h lunar cycle. Projections are for reference only.
+    </div>
+</div>
+
+<script>
+    let weatherData = null;
+    let daysMap = {};
+    let activeChart = null;
+    const LUNAR_CYCLE = 12.4206;
+
+    // Load saved tide offset from browser memory
+    let savedOffset = localStorage.getItem('tideOffset') || 0;
+    document.getElementById('tideSync').value = localStorage.getItem('tideTime') || "12:00";
+
+    function getWindIcon(deg) {
+        const arrows = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
+        return arrows[Math.round(deg / 45) % 8];
+    }
+
+    function render(dateKey) {
+        const indices = daysMap[dateKey];
+        const firstHour = new Date(weatherData.hourly.time[0]).getTime();
         
-        // Initial phase adjustment for the tidal model
-        const TIDE_PHASE = -1.5; 
-
-        function getWindDirection(degree) {
-            if (degree === null || degree === undefined) return '-';
-            const arrows = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
-            return arrows[Math.round(degree / 45) % 8];
-        }
-
-        function getWindColor(speed) {
-            if (speed < 15) return 'rgba(46, 204, 113, 0.7)'; // Low
-            if (speed < 30) return 'rgba(241, 196, 15, 0.7)'; // Moderate
-            return 'rgba(231, 76, 60, 0.7)'; // Strong
-        }
-
-        function updateChart(dateKey) {
-            const indices = daysMap[dateKey];
-            const hours = indices.map(i => new Date(weatherData.hourly.time[i]).getHours() + ':00');
-            const windDirs = indices.map(i => getWindDirection(weatherData.hourly.wind_direction_10m[i]));
-            const windSpeeds = indices.map(i => weatherData.hourly.wind_speed_10m[i]);
-            const windGusts = indices.map(i => weatherData.hourly.wind_gusts_10m[i]);
-            
-            const firstHourTimestamp = new Date(weatherData.hourly.time[0]).getTime();
-            
-            const tideCurve = indices.map(i => {
-                const currentTime = new Date(weatherData.hourly.time[i]).getTime();
-                const hoursSinceStart = (currentTime - firstHourTimestamp) / (1000 * 60 * 60);
-                // Continuous calculation based on the M2 tidal constituent (12.42h cycle)
-                return (2 + 1.5 * Math.sin((hoursSinceStart * (Math.PI * 2 / 12.4206)) + TIDE_PHASE)).toFixed(2);
-            });
-
-            const labels = hours.map((h, i) => [h, windDirs[i]]);
-
-            if (myChart) myChart.destroy();
-
-            const ctx = document.getElementById('mainChart').getContext('2d');
-            myChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            type: 'line',
-                            label: 'Tide Height (m)',
-                            data: tideCurve,
-                            borderColor: '#3498db',
-                            backgroundColor: 'rgba(52, 152, 219, 0.15)',
-                            borderWidth: 3,
-                            fill: true,
-                            tension: 0.4,
-                            yAxisID: 'yTide',
-                            pointRadius: 0
-                        },
-                        {
-                            type: 'line',
-                            label: 'Wind Gusts (km/h)',
-                            data: windGusts,
-                            borderColor: 'rgba(255, 255, 255, 0.4)',
-                            borderDash: [5, 5],
-                            borderWidth: 2,
-                            yAxisID: 'yWind',
-                            pointRadius: 3
-                        },
-                        {
-                            type: 'bar',
-                            label: 'Avg. Wind Speed (km/h)',
-                            data: windSpeeds,
-                            backgroundColor: windSpeeds.map(getWindColor),
-                            borderRadius: 4,
-                            yAxisID: 'yWind'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    interaction: { mode: 'index', intersect: false },
-                    scales: {
-                        x: {
-                            ticks: { color: '#a0a0a0', font: { size: 13 } },
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
-                        },
-                        yWind: {
-                            type: 'linear',
-                            position: 'left',
-                            title: { display: true, text: 'Wind Speed (km/h)', color: '#ffffff' },
-                            ticks: { color: '#ffffff' },
-                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
-                        },
-                        yTide: {
-                            type: 'linear',
-                            position: 'right',
-                            title: { display: true, text: 'Height (meters)', color: '#3498db' },
-                            ticks: { color: '#3498db' },
-                            grid: { display: false },
-                            min: 0,
-                            max: 4
-                        }
-                    },
-                    plugins: {
-                        legend: { labels: { color: '#e0e0e0', padding: 20 } }
-                    }
-                }
-            });
-        }
-
-        navigator.geolocation.getCurrentPosition(async (position) => {
-            const { latitude, longitude } = position.coords;
-            document.getElementById('status').innerText = `Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)} | Retrieving global data...`;
-
-            try {
-                const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto`);
-                weatherData = await response.json();
-
-                if (weatherData.error) throw new Error(weatherData.reason);
-
-                weatherData.hourly.time.forEach((t, i) => {
-                    const date = t.split('T')[0];
-                    if (!daysMap[date]) daysMap[date] = [];
-                    daysMap[date].push(i);
-                });
-
-                const picker = document.getElementById('dayPicker');
-                Object.keys(daysMap).forEach(dateKey => {
-                    const option = document.createElement('option');
-                    option.value = dateKey;
-                    const dateObj = new Date(dateKey);
-                    option.innerText = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                    picker.appendChild(option);
-                });
-
-                document.getElementById('status').style.display = 'none';
-                document.getElementById('controls').style.display = 'block';
-                
-                updateChart(picker.value);
-                picker.addEventListener('change', (e) => updateChart(e.target.value));
-
-            } catch (error) {
-                document.getElementById('status').innerText = "Data acquisition error: " + error.message;
-            }
-        }, (error) => {
-            document.getElementById('status').innerText = "Location access denied. Please enable GPS and refresh.";
+        const labels = indices.map(i => {
+            const date = new Date(weatherData.hourly.time[i]);
+            return [`${date.getHours()}:00`, getWindIcon(weatherData.hourly.wind_direction_10m[i])];
         });
-    </script>
+
+        const windSpeeds = indices.map(i => weatherData.hourly.wind_speed_10m[i]);
+        const windGusts = indices.map(i => weatherData.hourly.wind_gusts_10m[i]);
+
+        // Calculate tide heights based on sync point
+        const tideHeights = indices.map(i => {
+            const currentTime = new Date(weatherData.hourly.time[i]).getTime();
+            const hoursSinceEpoch = (currentTime - firstHour) / 3600000;
+            const phase = (hoursSinceEpoch / LUNAR_CYCLE) * Math.PI * 2;
+            return (2 + 1.5 * Math.sin(phase + parseFloat(savedOffset))).toFixed(2);
+        });
+
+        if (activeChart) activeChart.destroy();
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        activeChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        type: 'line', label: 'Tide (m)', data: tideHeights,
+                        borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        fill: true, tension: 0.4, yAxisID: 'yT', pointRadius: 0
+                    },
+                    {
+                        type: 'line', label: 'Gusts (km/h)', data: windGusts,
+                        borderColor: 'rgba(255,255,255,0.4)', borderDash: [5,5], yAxisID: 'yW', pointRadius: 2
+                    },
+                    {
+                        type: 'bar', label: 'Wind (km/h)', data: windSpeeds,
+                        backgroundColor: windSpeeds.map(s => s < 15 ? '#2ecc71' : (s < 30 ? '#f1c40f' : '#e74c3c')),
+                        borderRadius: 4, yAxisID: 'yW'
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    yW: { position: 'left', title: { display: true, text: 'Wind Speed (km/h)', color: '#fff' } },
+                    yT: { position: 'right', title: { display: true, text: 'Tide Height (m)', color: '#3498db' }, grid: { display: false }, min: 0, max: 4 }
+                },
+                plugins: { legend: { labels: { color: '#c9d1d9' } } }
+            }
+        });
+    }
+
+    function calculateOffset(timeString) {
+        const [hours, mins] = timeString.split(':');
+        const now = new Date();
+        const highTideDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, mins);
+        const firstHourDate = new Date(weatherData.hourly.time[0]);
+        
+        const diffInHours = (highTideDate - firstHourDate) / 3600000;
+        // Adjust sine phase so that High Tide (Peak) occurs at the user-defined time
+        const newOffset = (Math.PI / 2) - ((diffInHours / LUNAR_CYCLE) * Math.PI * 2);
+        
+        savedOffset = newOffset;
+        localStorage.setItem('tideOffset', newOffset);
+        localStorage.setItem('tideTime', timeString);
+        render(document.getElementById('dayPicker').value);
+    }
+
+    navigator.geolocation.getCurrentPosition(async (p) => {
+        const { latitude: lat, longitude: lon } = p.coords;
+        try {
+            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto`);
+            weatherData = await res.json();
+
+            weatherData.hourly.time.forEach((t, i) => {
+                const d = t.split('T')[0];
+                if (!daysMap[d]) daysMap[d] = [];
+                daysMap[d].push(i);
+            });
+
+            const sel = document.getElementById('dayPicker');
+            Object.keys(daysMap).forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.innerText = new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+                sel.appendChild(opt);
+            });
+
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('controls').style.display = 'flex';
+
+            const tideInput = document.getElementById('tideSync');
+            tideInput.addEventListener('change', (e) => calculateOffset(e.target.value));
+            
+            // Initial render
+            calculateOffset(tideInput.value);
+
+            sel.onchange = (e) => render(e.target.value);
+        } catch (e) { document.getElementById('status').innerText = "Service unavailable."; }
+    }, () => { document.getElementById('status').innerText = "Location access required."; });
+</script>
+
 </body>
 </html>
