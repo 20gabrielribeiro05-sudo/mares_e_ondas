@@ -31,7 +31,7 @@
             flex-wrap: wrap;
             gap: 30px;
             justify-content: center;
-            align-items: flex-end;
+            align-items: center;
             background: #161b22;
             padding: 20px;
             border-radius: 8px;
@@ -41,7 +41,7 @@
         }
 
         .control-group { display: flex; flex-direction: column; gap: 8px; position: relative; }
-        .control-with-compass { display: flex; align-items: center; gap: 15px; }
+        .control-with-compass { display: flex; align-items: center; gap: 12px; }
 
         label { font-size: 0.85em; font-weight: 600; color: #8b949e; text-transform: uppercase; }
         
@@ -52,21 +52,25 @@
             border: 1px solid #30363d;
             border-radius: 4px;
             outline: none;
+            height: 42px;
+            box-sizing: border-box;
         }
 
-        /* Compass Style - Left aligned */
         .compass-box {
             display: flex;
             align-items: center;
             justify-content: center;
             background: #0d1117;
-            padding: 5px;
+            padding: 2px;
             border-radius: 8px;
             border: 1px solid #30363d;
+            height: 42px;
+            width: 42px;
+            box-sizing: border-box;
         }
         .compass-svg {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
         }
 
         .chart-container {
@@ -105,20 +109,17 @@
     <div id="status">Establishing connection...</div>
 
     <div class="dashboard-controls" id="controls">
-        <!-- Forecast Day Group with Compass on the LEFT -->
-        <div class="control-group">
-            <label id="ui-label-day">Forecast Day</label>
-            <div class="control-with-compass">
-                <div class="compass-box" title="North Reference">
-                    <svg class="compass-svg" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="45" fill="none" stroke="#30363d" stroke-width="2"/>
-                        <path d="M50 10 L40 50 L50 40 L60 50 Z" fill="#e74c3c"/>
-                        <path d="M50 90 L40 50 L50 60 L60 50 Z" fill="#c9d1d9"/>
-                        <text x="50" y="26" fill="#f0f6fc" font-size="14" font-weight="bold" text-anchor="middle">N</text>
-                    </svg>
-                </div>
-                <select id="dayPicker"></select>
+        <!-- Simplified Day Picker without top label -->
+        <div class="control-with-compass">
+            <div class="compass-box" title="North Reference">
+                <svg class="compass-svg" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#30363d" stroke-width="2"/>
+                    <path d="M50 10 L40 50 L50 40 L60 50 Z" fill="#e74c3c"/>
+                    <path d="M50 90 L40 50 L50 60 L60 50 Z" fill="#c9d1d9"/>
+                    <text x="50" y="26" fill="#f0f6fc" font-size="14" font-weight="bold" text-anchor="middle">N</text>
+                </svg>
             </div>
+            <select id="dayPicker"></select>
         </div>
 
         <div class="control-group">
@@ -140,7 +141,6 @@
             title: "Coastal Forecast",
             statusLoc: "Detecting location...",
             statusData: "Retrieving global data...",
-            labelDay: "Forecast Day",
             labelSync: "Sync Tide (High Tide Today)",
             chartTide: "Tide Height (m)",
             chartWind: "Avg. Wind (km/h)",
@@ -153,7 +153,6 @@
             title: "Previsão Costeira",
             statusLoc: "A detetar localização...",
             statusData: "A obter dados globais...",
-            labelDay: "Dia da Previsão",
             labelSync: "Sincronizar Maré (Preia-mar hoje)",
             chartTide: "Altura da Maré (m)",
             chartWind: "Vento Médio (km/h)",
@@ -176,7 +175,6 @@
     function updateUIText() {
         const t = translations[currentLang];
         document.getElementById('ui-title').innerText = t.title;
-        document.getElementById('ui-label-day').innerText = t.labelDay;
         document.getElementById('ui-label-sync').innerText = t.labelSync;
         document.getElementById('ui-disclaimer').innerHTML = t.disclaimer;
         if (weatherData) render(document.getElementById('dayPicker').value);
