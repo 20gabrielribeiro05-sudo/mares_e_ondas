@@ -16,6 +16,18 @@
         }
         h1 { margin-bottom: 5px; color: #fff; }
         #status { color: #aaa; margin-bottom: 20px; font-style: italic; }
+        #controls { margin-bottom: 20px; display: none; }
+        select {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 5px;
+            cursor: pointer;
+            outline: none;
+        }
+        select:focus { border-color: #3498db; }
         .chart-wrapper {
             width: 100%;
             max-width: 1000px;
@@ -29,132 +41,182 @@
 </head>
 <body>
 
-    <h1>As tuas condições agora</h1>
-    <div id="status">A procurar a tua localização... não te esqueças de dar permissão no browser.</div>
+    <h1>As tuas condições</h1>
+    <div id="status">A procurar a tua localização... não te esqueças da permissão.</div>
+
+    <div id="controls">
+        <label for="dayPicker" style="margin-right: 10px; font-weight: bold;">Escolhe o dia:</label>
+        <select id="dayPicker"></select>
+    </div>
 
     <div class="chart-wrapper">
         <canvas id="windTideChart"></canvas>
     </div>
 
     <script>
-        // Função para converter graus do vento em setas apontando a direção
+        let myChart = null;
+        let globalData = null;
+        let daysMap = {};
+
+        // Converter graus em setas
         function getWindDirection(degree) {
             if (degree === null || degree === undefined) return '-';
             const arrows = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
             return arrows[Math.round(degree / 45) % 8];
         }
 
-        // Função para definir as cores do vento
+        // Definir as cores do vento
         function getWindColor(speed) {
             if (speed < 15) return 'rgba(46, 204, 113, 0.8)'; // Verde (Fraco)
             if (speed < 30) return 'rgba(241, 196, 15, 0.8)'; // Amarelo (Moderado)
             return 'rgba(231, 76, 60, 0.8)'; // Vermelho (Forte)
         }
 
+        // Função para desenhar o gráfico consoante o dia escolhido
+        function drawChartForDay(dateKey) {
+            const indices = daysMap[dateKey];
+            
+            const hours = indices.map(i => new Date(globalData.hourly.time[i]).getHours() + 'h');
+            const windSpeeds = indices.map(i => globalData.hourly.wind_speed_10m[i]);
+            const windGusts = indices.map(i => globalData.hourly.wind_gusts_10m[i]);
+            const windDirs = indices.map(i => getWindDirection(globalData.hourly.wind_direction_10m[i]));
+            
+            const labels = hours.map((h, idx) => [h, windDirs[idx]]);
+            const windColors = windSpeeds.map(getWindColor);
+
+            // Maré simulada adaptada ao tamanho dos dados (normalmente 24h)
+            const tideSim = Array.from({length: indices.length}, (_, i) => (2 + 1.5 * Math.sin(i * (Math.PI * 2 / 12.4))).toFixed(2));
+
+            if (myChart) {
+                myChart.destroy(); // Apaga o gráfico antigo antes de desenhar o novo
+            }
+
+            const ctx = document.getElementById('windTideChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            type: 'line',
+                            label: 'Maré Simulada (m)',
+                            data: tideSim,
+                            borderColor: '#3498db',
+                            backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'yRight'
+                        },
+                        {
+                            type: 'line',
+                            label: 'Rajadas (km/h)',
+                            data: windGusts,
+                            borderColor: 'rgba(255, 255, 255, 0.7)',
+                            borderDash: [5, 5],
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.3,
+                            yAxisID: 'yLeft'
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Vento Médio (km/h)',
+                            data: windSpeeds,
+                            backgroundColor: windColors,
+                            borderRadius: 5,
+                            yAxisID: 'yLeft'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        title: { display: false },
+                        legend: { labels: { color: '#e0e0e0' } }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#e0e0e0', font: { size: 14 } },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        yLeft: {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: 'Vento (km/h)', color: '#fff' },
+                            ticks: { color: '#e0e0e0' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        yRight: {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: 'Altura da Maré (m)', color: '#3498db' },
+                            ticks: { color: '#3498db' },
+                            grid: { drawOnChartArea: false } 
+                        }
+                    }
+                }
+            });
+        }
+
         navigator.geolocation.getCurrentPosition(async (position) => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            document.getElementById('status').innerText = `Localização: ${lat.toFixed(4)}, ${lon.toFixed(4)}. A sacar dados...`;
+            document.getElementById('status').innerText = `Localização captada. A sacar previsões...`;
 
             try {
-                // Sacar Vento da Open-Meteo
-                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto`);
-                const weatherData = await weatherRes.json();
+                // A API traz 7 dias por defeito
+                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto`);
+                globalData = await res.json();
 
-                if (weatherData.error) {
-                    throw new Error("Erro na API do tempo: " + weatherData.reason);
-                }
+                if (globalData.error) throw new Error(globalData.reason);
 
-                // Usar apenas as próximas 24 horas
-                const hours = weatherData.hourly.time.slice(0, 24).map(t => new Date(t).getHours() + 'h');
-                const windSpeeds = weatherData.hourly.wind_speed_10m.slice(0, 24);
-                const windGusts = weatherData.hourly.wind_gusts_10m.slice(0, 24);
-                const windDirs = weatherData.hourly.wind_direction_10m.slice(0, 24).map(getWindDirection);
-                
-                document.getElementById('status').innerText = "Tudo pronto.";
+                document.getElementById('status').style.display = 'none';
 
-                // Eixo X com dupla linha: Hora e Direção do vento por baixo
-                const labels = hours.map((h, i) => [h, windDirs[i]]);
-                const windColors = windSpeeds.map(getWindColor);
-
-                // Gerar a linha da Maré falsa (ciclo de 12h25m, oscila entre 0.5m e 3.5m)
-                const tideSim = Array.from({length: 24}, (_, i) => (2 + 1.5 * Math.sin(i * (Math.PI * 2 / 12.4))).toFixed(2));
-
-                // GRÁFICO: Vento e Marés
-                const ctx1 = document.getElementById('windTideChart').getContext('2d');
-                new Chart(ctx1, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                type: 'line',
-                                label: 'Maré Simulada (m)',
-                                data: tideSim,
-                                borderColor: '#3498db', // Azul
-                                backgroundColor: 'rgba(52, 152, 219, 0.2)',
-                                borderWidth: 3,
-                                fill: true,
-                                tension: 0.4,
-                                yAxisID: 'yRight'
-                            },
-                            {
-                                type: 'line',
-                                label: 'Rajadas (km/h)',
-                                data: windGusts,
-                                borderColor: 'rgba(255, 255, 255, 0.7)',
-                                borderDash: [5, 5],
-                                borderWidth: 2,
-                                fill: false,
-                                tension: 0.3,
-                                yAxisID: 'yLeft'
-                            },
-                            {
-                                type: 'bar',
-                                label: 'Vento Médio (km/h)',
-                                data: windSpeeds,
-                                backgroundColor: windColors,
-                                borderRadius: 5,
-                                yAxisID: 'yLeft'
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: {
-                            title: { display: true, text: 'Vento e Marés', color: '#fff', font: { size: 18 } },
-                            legend: { labels: { color: '#e0e0e0' } }
-                        },
-                        scales: {
-                            x: {
-                                ticks: { color: '#e0e0e0', font: { size: 14 } },
-                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                            },
-                            yLeft: {
-                                type: 'linear',
-                                position: 'left',
-                                title: { display: true, text: 'Vento (km/h)', color: '#fff' },
-                                ticks: { color: '#e0e0e0' },
-                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                            },
-                            yRight: {
-                                type: 'linear',
-                                position: 'right',
-                                title: { display: true, text: 'Altura da Maré (m)', color: '#3498db' },
-                                ticks: { color: '#3498db' },
-                                grid: { drawOnChartArea: false } 
-                            }
-                        }
+                // Agrupar os índices das horas por dia (YYYY-MM-DD)
+                globalData.hourly.time.forEach((timeStr, index) => {
+                    const dateObj = new Date(timeStr);
+                    const dateKey = timeStr.split('T')[0]; // "2026-04-30"
+                    
+                    if (!daysMap[dateKey]) {
+                        daysMap[dateKey] = [];
                     }
+                    daysMap[dateKey].push(index);
+                });
+
+                // Preencher o menu com os dias disponíveis
+                const picker = document.getElementById('dayPicker');
+                const dateOptions = { weekday: 'short', day: '2-digit', month: 'long' };
+
+                Object.keys(daysMap).forEach(dateKey => {
+                    const opt = document.createElement('option');
+                    opt.value = dateKey;
+                    
+                    // Formatar para Português (Ex: "qui., 30 de abril")
+                    const dateObj = new Date(dateKey);
+                    let displayDate = dateObj.toLocaleDateString('pt-PT', dateOptions);
+                    displayDate = displayDate.charAt(0).toUpperCase() + displayDate.slice(1);
+                    
+                    opt.innerText = displayDate;
+                    picker.appendChild(opt);
+                });
+
+                // Mostrar os controlos e desenhar o primeiro dia logo de arranque
+                document.getElementById('controls').style.display = 'block';
+                drawChartForDay(picker.value);
+
+                // Quando o gajo muda de dia, redesenha o gráfico
+                picker.addEventListener('change', (e) => {
+                    drawChartForDay(e.target.value);
                 });
 
             } catch (error) {
-                document.getElementById('status').innerText = "Continuou a dar bronca. Erro: " + error.message;
+                document.getElementById('status').innerText = "Deu bronca a carregar os dados: " + error.message;
                 console.error(error);
             }
         }, (error) => {
-            document.getElementById('status').innerText = "Deu erro no GPS. Precisas de permitir a localização no browser, chefe.";
+            document.getElementById('status').innerText = "Erro no GPS. Permite a localização no browser.";
         });
     </script>
 </body>
