@@ -42,7 +42,6 @@
     </div>
 
     <script>
-        // Converte os graus em pontos cardeais
         function degToCompass(num) {
             const val = Math.floor((num / 22.5) + 0.5);
             const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
@@ -52,21 +51,21 @@
         if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition(fetchData, showError);
         } else {
-            document.getElementById('status').innerText = "O teu browser é pré-histórico. Não tem GPS.";
+            document.getElementById('status').innerText = "O teu browser não tem GPS.";
         }
 
-        // Função de busca teimosa pela maré num raio de ~11km
+        // Esta é a função que resolve o teu problema aí em Lisboa. Não a apagues!
         async function getTideTeimoso(lat, lon) {
             const offsets = [
-                [0, 0],           // Ponto exato
-                [0, -0.05],       // ~5km Oeste
-                [-0.05, 0],       // ~5km Sul
-                [0, 0.05],        // ~5km Este
-                [0.05, 0],        // ~5km Norte
-                [0, -0.1],        // ~11km Oeste
-                [-0.1, 0],        // ~11km Sul
-                [0, 0.1],         // ~11km Este
-                [0.1, 0]          // ~11km Norte
+                [0, 0],           
+                [0, -0.05],       
+                [-0.05, 0],       
+                [0, 0.05],        
+                [0.05, 0],        
+                [0, -0.1],        
+                [-0.1, 0],        
+                [0, 0.1],         
+                [0.1, 0]          
             ];
 
             for (let i = 0; i < offsets.length; i++) {
@@ -80,45 +79,37 @@
                             return data.hourly.ocean_tide; 
                         }
                     }
-                } catch (e) {
-                    // Ignora o erro e continua para a próxima coordenada
-                }
+                } catch (e) {}
             }
-            return null; // Se não encontrou maré de jeito nenhum
+            return null; 
         }
 
         async function fetchData(position) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             
-            document.getElementById('status').innerText = 'A processar as tuas coordenadas...';
+            document.getElementById('status').innerText = 'A processar coordenadas...';
 
             try {
-                // 1. Descobrir o nome da localidade
                 let locationName = "Localização Desconhecida";
                 try {
                     const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
                     const geoData = await geoRes.json();
                     locationName = geoData.address.city || geoData.address.town || geoData.address.village || geoData.address.county || "Tua Zona";
-                } catch (e) {
-                    console.warn("Nominatim falhou, caga nisso.");
-                }
+                } catch (e) {}
 
                 document.getElementById('page-title').innerText = `Canoagem/Surf/Windsurf - ${locationName}`;
-                document.getElementById('status').innerText = 'A sacar o vento e a procurar água para as marés...';
+                document.getElementById('status').innerText = 'A varrer o mapa à procura de marés...';
 
-                // 2. O vento saca sempre das tuas coordenadas exatas
                 const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=windspeed_10m,winddirection_10m&timezone=auto&forecast_days=1`);
-                if (!weatherRes.ok) throw new Error("A API do vento está em baixo.");
+                if (!weatherRes.ok) throw new Error("A API do vento pifou.");
                 const weatherData = await weatherRes.json();
 
-                // 3. A maré procura à tua volta até encontrar água
+                // Busca teimosa a funcionar
                 const tides = await getTideTeimoso(lat, lon);
 
-                // Esconder mensagem de status porque já temos os dados
                 document.getElementById('status').style.display = 'none';
 
-                // Formatar dados para o gráfico
                 const hourly = weatherData.hourly;
                 const labels = hourly.time.map((timeString, index) => {
                     const date = new Date(timeString);
@@ -132,18 +123,18 @@
                 drawChart(labels, windSpeeds, tides);
 
             } catch (err) {
-                document.getElementById('status').innerText = 'Deu barraca a carregar a meteorologia. Vê a consola.';
+                document.getElementById('status').innerText = 'Erro brutal a carregar os dados. Vê a consola.';
                 console.error(err);
             }
         }
 
         function showError(error) {
             let msg = "Erro desconhecido.";
-            if (error.code === 1) msg = "Se não dás permissão de GPS, não há dados para ninguém.";
-            if (error.code === 2) msg = "O teu GPS não está a apanhar rede.";
-            if (error.code === 3) msg = "Demorou demasiado tempo a encontrar-te.";
+            if (error.code === 1) msg = "Sem permissão de GPS não fazemos nada.";
+            if (error.code === 2) msg = "O GPS falhou.";
+            if (error.code === 3) msg = "Demorou demasiado tempo.";
             document.getElementById('status').innerText = msg;
-            document.getElementById('page-title').innerText = "Canoagem/Surf/Windsurf - Localização Bloqueada";
+            document.getElementById('page-title').innerText = "Canoagem/Surf/Windsurf - Sem GPS";
         }
 
         function drawChart(labels, windSpeeds, tides) {
@@ -171,7 +162,6 @@
                 }
             };
 
-            // Se o getTideTeimoso encontrou água, adicionamos as marés ao gráfico
             if (tides && tides.length > 0) {
                 datasets.push({
                     label: 'Altura da Maré (m)',
@@ -191,9 +181,8 @@
                     grid: { drawOnChartArea: false }
                 };
             } else {
-                // Se não encontrou em 11km, dá um aviso na página
                 document.getElementById('status').style.display = 'block';
-                document.getElementById('status').innerText = "Vento carregado. Não encontrei marés num raio de 11km, só tens gráfico do vento.";
+                document.getElementById('status').innerText = "Vento carregado. Mas o radar não encontrou marés em 11km.";
             }
 
             new Chart(ctx, {
