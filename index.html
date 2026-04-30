@@ -13,30 +13,19 @@
             margin: 0;
             padding: 20px;
         }
-        .container { max-width: 1100px; margin: 0 auto; position: relative; }
-        h1 { font-weight: 300; color: #f0f6fc; text-align: center; margin-top: 40px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        h1 { font-weight: 300; color: #f0f6fc; margin: 0; flex-grow: 1; text-align: center; }
         
         #status { text-align: center; color: #8b949e; font-size: 0.9em; margin-bottom: 20px; }
         
-        /* Compass Style */
-        .compass-box {
-            position: absolute;
-            top: 0;
-            left: 0;
-            text-align: center;
-        }
-        .compass-svg {
-            width: 60px;
-            height: 60px;
-            filter: drop-shadow(0 0 5px rgba(52, 152, 219, 0.5));
-        }
-
-        .lang-switch {
-            position: absolute;
-            top: 0;
-            right: 0;
-        }
-
         .dashboard-controls {
             display: flex;
             flex-wrap: wrap;
@@ -64,10 +53,26 @@
 
         .chart-container {
             background: #161b22;
-            padding: 20px;
+            padding: 25px;
             border-radius: 12px;
             border: 1px solid #30363d;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative; /* For the compass positioning */
+        }
+
+        /* Compass integrated into the chart box */
+        .compass-box {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 10;
+            background: rgba(13, 17, 23, 0.6);
+            padding: 5px;
+            border-radius: 50%;
+        }
+        .compass-svg {
+            width: 50px;
+            height: 50px;
         }
 
         .disclaimer {
@@ -84,25 +89,17 @@
 <body>
 
 <div class="container">
-    <!-- Static North Compass -->
-    <div class="compass-box">
-        <svg class="compass-svg" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="45" fill="none" stroke="#30363d" stroke-width="2"/>
-            <path d="M50 10 L40 50 L50 40 L60 50 Z" fill="#e74c3c"/> <!-- North Needle -->
-            <path d="M50 90 L40 50 L50 60 L60 50 Z" fill="#c9d1d9"/> <!-- South Needle -->
-            <text x="50" y="25" fill="#f0f6fc" font-size="12" text-anchor="middle" font-family="Arial">N</text>
-        </svg>
+    <div class="header">
+        <div class="lang-switch">
+            <select id="langPicker">
+                <option value="en">English</option>
+                <option value="pt">Português</option>
+            </select>
+        </div>
+        <h1 id="ui-title">Coastal Forecast</h1>
+        <div style="width: 80px;"></div> <!-- Spacer to balance header -->
     </div>
 
-    <!-- Language Switch -->
-    <div class="lang-switch">
-        <select id="langPicker">
-            <option value="en">English</option>
-            <option value="pt">Português</option>
-        </select>
-    </div>
-
-    <h1 id="ui-title">Coastal Forecast</h1>
     <div id="status">Establishing connection...</div>
 
     <div class="dashboard-controls" id="controls">
@@ -117,6 +114,15 @@
     </div>
 
     <div class="chart-container">
+        <!-- Static North Compass shifted here -->
+        <div class="compass-box">
+            <svg class="compass-svg" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#30363d" stroke-width="2"/>
+                <path d="M50 10 L40 50 L50 40 L60 50 Z" fill="#e74c3c"/> <!-- North -->
+                <path d="M50 90 L40 50 L50 60 L60 50 Z" fill="#c9d1d9"/> <!-- South -->
+                <text x="50" y="25" fill="#f0f6fc" font-size="12" text-anchor="middle">N</text>
+            </svg>
+        </div>
         <canvas id="mainChart"></canvas>
     </div>
 
@@ -136,7 +142,7 @@
             chartGusts: "Gusts (km/h)",
             yAxisWind: "Wind Speed (km/h)",
             yAxisTide: "Height (m)",
-            disclaimer: "<strong>Note:</strong> Meteorological data is provided by the Open-Meteo API. Tides for subsequent days are mathematically modeled using astronomical cycles (M2 constituent) based on your initial sync. These projections are for informational purposes only and may not correspond to actual real-time local conditions. For navigation or safety-critical activities, please consult official hydrographic services."
+            disclaimer: "<strong>Note:</strong> Meteorological data is provided by the Open-Meteo API. Tides for subsequent days are mathematically modeled using astronomical cycles (M2 constituent) based on your initial sync. Projections are for informational purposes only. Consult official services for safety."
         },
         pt: {
             title: "Previsão Costeira",
@@ -149,7 +155,7 @@
             chartGusts: "Rajadas (km/h)",
             yAxisWind: "Velocidade do Vento (km/h)",
             yAxisTide: "Altura (m)",
-            disclaimer: "<strong>Nota:</strong> Os dados meteorológicos são fornecidos pela API Open-Meteo. As marés para os dias subsequentes são modeladas matematicamente usando ciclos astronómicos (constituinte M2) com base na sua sincronização inicial. Estas projeções são apenas para fins informativos e podem não corresponder às condições locais reais. Para navegação ou atividades de segurança crítica, consulte os serviços hidrográficos oficiais."
+            disclaimer: "<strong>Nota:</strong> Os dados meteorológicos são fornecidos pela API Open-Meteo. As marés são modeladas matematicamente (constituinte M2) com base na sincronização inicial. Projeções informativas apenas. Consulte serviços oficiais para segurança."
         }
     };
 
