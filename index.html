@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Radar de Vento e Mar - Gráficos</title>
+    <title>Radar de Vento, Mar e Marés</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { 
@@ -38,9 +38,9 @@
             display: none;
         }
         canvas {
-            max-height: 400px;
+            max-height: 350px;
+            margin-bottom: 30px;
         }
-        /* Estilos para a caixa de GPS Manual */
         .manual-gps {
             display: none;
             background: #242424;
@@ -49,7 +49,6 @@
             text-align: center;
             border: 1px solid #333;
             margin-top: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
         input {
             padding: 10px;
@@ -73,6 +72,16 @@
         button:hover {
             background: #3b8bb5;
         }
+        .aviso-mare {
+            background: #4a3f00;
+            color: #ffd700;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 14px;
+            margin-bottom: 15px;
+            border: 1px solid #806b00;
+        }
     </style>
 </head>
 <body>
@@ -81,8 +90,7 @@
     <div id="status" class="status">A caçar o sinal de GPS...</div>
     
     <div class="manual-gps" id="manual-gps">
-        <p class="error">O browser bloqueou o GPS. Mete as coordenadas à mão:</p>
-        <p style="font-size: 12px; color: #888;">Exemplo Ericeira -> Lat: 38.96 | Lon: -9.41</p>
+        <p class="error">GPS bloqueado. Mete as coordenadas à mão:</p>
         <input type="number" id="lat-input" placeholder="Latitude" step="any">
         <input type="number" id="lon-input" placeholder="Longitude" step="any">
         <br><br>
@@ -90,33 +98,37 @@
     </div>
 
     <div class="chart-container" id="charts-container">
+        <!-- Vento -->
         <canvas id="ventoChart"></canvas>
-        <br><br>
+        
+        <!-- Ondulação -->
         <canvas id="ondaChart"></canvas>
+        
+        <!-- Maré -->
+        <div class="aviso-mare">⚠️ O gráfico da maré abaixo é uma simulação matemática (visual). As APIs gratuitas não fornecem dados reais de marés.</div>
+        <canvas id="mareChart"></canvas>
     </div>
 
     <script>
         const statusEl = document.getElementById('status');
         const chartsContainer = document.getElementById('charts-container');
         const manualGps = document.getElementById('manual-gps');
-        let chartVento, chartOnda; // Variáveis para apagar gráficos antigos se fizeres nova pesquisa
+        let chartVento, chartOnda, chartMare;
 
         function formatarHora(dataIso) {
             const data = new Date(dataIso);
             return data.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
         }
 
-        // Tentar o GPS automático
         if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition(
                 (position) => puxarDados(position.coords.latitude, position.coords.longitude),
                 showError
             );
         } else {
-            showError({message: "Browser pré-histórico."});
+            showError({message: "Browser velho."});
         }
 
-        // Função do botão manual
         function carregarManual() {
             const lat = document.getElementById('lat-input').value;
             const lon = document.getElementById('lon-input').value;
@@ -124,23 +136,22 @@
                 manualGps.style.display = 'none';
                 puxarDados(lat, lon);
             } else {
-                alert("Mete lá os dois valores, não sejas nabo.");
+                alert("Preenche os valores, não sejas calão.");
             }
         }
 
-        // Função que vai buscar os dados e desenha tudo
         async function puxarDados(lat, lon) {
-            statusEl.innerText = "Coordenadas prontas. A gerar os gráficos...";
+            statusEl.innerText = "A descarregar os dados...";
             statusEl.style.display = 'block';
             chartsContainer.style.display = 'none';
 
             try {
+                // Vento e Ondas (APIs Reais)
                 const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_gusts_10m&forecast_days=1&timezone=auto`;
-                const weatherRes = await fetch(weatherUrl);
-                const weatherData = await weatherRes.json();
-
                 const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=wave_height,wave_period&forecast_days=1&timezone=auto`;
-                const marineRes = await fetch(marineUrl);
+                
+                const [weatherRes, marineRes] = await Promise.all([fetch(weatherUrl), fetch(marineUrl)]);
+                const weatherData = await weatherRes.json();
                 const marineData = await marineRes.json();
 
                 const labels = weatherData.hourly.time.map(formatarHora);
@@ -148,31 +159,52 @@
                 const ventoRaj = weatherData.hourly.wind_gusts_10m;
                 const ondaAlt = marineData.hourly.wave_height.map(val => val === null ? 0 : val);
 
+                // Maré (Simulação Matemática Falsa para Efeito Visual)
+                const mareSimulada = [];
+                for (let i = 0; i < 24; i++) {
+                    // Simula um ciclo de maré de ~12.4 horas
+                    const nivel = 2 + 1.5 * Math.sin((i / 12.4) * Math.PI * 2);
+                    mareSimulada.push(nivel.toFixed(2));
+                }
+
                 statusEl.style.display = 'none';
                 chartsContainer.style.display = 'block';
 
-                // Destruir os gráficos antigos se existirem, senão dá barraca ao desenhar por cima
                 if (chartVento) chartVento.destroy();
                 if (chartOnda) chartOnda.destroy();
+                if (chartMare) chartMare.destroy();
 
+                // Desenhar Vento
                 const ctxVento = document.getElementById('ventoChart').getContext('2d');
                 chartVento = new Chart(ctxVento, {
                     type: 'line',
                     data: {
                         labels: labels,
                         datasets: [
-                            { label: 'Vento (km/h)', data: ventoVel, borderColor: '#4fa3d1', backgroundColor: 'rgba(79, 163, 209, 0.2)', borderWidth: 2, tension: 0.3, fill: true },
-                            { label: 'Rajadas (km/h)', data: ventoRaj, borderColor: '#ff6b6b', borderDash: [5, 5], borderWidth: 2, tension: 0.3, fill: false }
+                            { label: 'Vento (km/h)', data: ventoVel, borderColor: '#4fa3d1', backgroundColor: 'rgba(79, 163, 209, 0.2)', fill: true, tension: 0.3 },
+                            { label: 'Rajadas (km/h)', data: ventoRaj, borderColor: '#ff6b6b', borderDash: [5, 5], fill: false, tension: 0.3 }
                         ]
                     },
-                    options: { responsive: true, plugins: { legend: { labels: { color: '#e0e0e0' } }, title: { display: true, text: 'Vento e Rajadas', color: '#fff', font: { size: 16 } } }, scales: { x: { ticks: { color: '#aaa' }, grid: { color: '#333' } }, y: { ticks: { color: '#aaa' }, grid: { color: '#333' } } } }
+                    options: { responsive: true, plugins: { title: { display: true, text: 'Vento e Rajadas (Real)', color: '#fff', font: { size: 16 } } } }
                 });
 
+                // Desenhar Ondas
                 const ctxOnda = document.getElementById('ondaChart').getContext('2d');
                 chartOnda = new Chart(ctxOnda, {
                     type: 'bar',
                     data: { labels: labels, datasets: [{ label: 'Altura da Onda (m)', data: ondaAlt, backgroundColor: '#2ecc71', borderRadius: 4 }] },
-                    options: { responsive: true, plugins: { legend: { labels: { color: '#e0e0e0' } }, title: { display: true, text: 'Tamanho do Mar', color: '#fff', font: { size: 16 } } }, scales: { x: { ticks: { color: '#aaa' }, grid: { display: false } }, y: { ticks: { color: '#aaa' }, grid: { color: '#333' } } } }
+                    options: { responsive: true, plugins: { title: { display: true, text: 'Ondulação (Real)', color: '#fff', font: { size: 16 } } } }
+                });
+
+                // Desenhar Maré (Simulada)
+                const ctxMare = document.getElementById('mareChart').getContext('2d');
+                chartMare = new Chart(ctxMare, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{ label: 'Nível da Maré (m)', data: mareSimulada, borderColor: '#9b59b6', backgroundColor: 'rgba(155, 89, 182, 0.3)', fill: true, tension: 0.4 }]
+                    },
+                    options: { responsive: true, plugins: { title: { display: true, text: 'Ciclo da Maré (Simulação)', color: '#fff', font: { size: 16 } } } }
                 });
 
             } catch (error) {
@@ -181,11 +213,9 @@
             }
         }
 
-        // Se o GPS der erro, abre a caixa para inserir à mão
         function showError(error) {
             statusEl.style.display = 'none';
             manualGps.style.display = 'block';
-            console.warn("Motivo da falha de GPS:", error.message);
         }
     </script>
 </body>
