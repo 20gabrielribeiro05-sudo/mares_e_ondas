@@ -43,6 +43,12 @@
             outline: none;
         }
 
+        .lang-switch {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
         .chart-container {
             background: #161b22;
             padding: 20px;
@@ -58,22 +64,30 @@
             text-align: center;
             border-top: 1px solid #30363d;
             padding-top: 20px;
+            line-height: 1.6;
         }
     </style>
 </head>
 <body>
 
+<div class="lang-switch">
+    <select id="langPicker">
+        <option value="en">English</option>
+        <option value="pt">Português</option>
+    </select>
+</div>
+
 <div class="container">
-    <h1>Coastal Forecast</h1>
-    <div id="status">Establishing connection to GPS and weather satellites...</div>
+    <h1 id="ui-title">Coastal Forecast</h1>
+    <div id="status">Establishing connection...</div>
 
     <div class="dashboard-controls" id="controls">
         <div class="control-group">
-            <label>Forecast Day</label>
+            <label id="ui-label-day">Forecast Day</label>
             <select id="dayPicker"></select>
         </div>
         <div class="control-group">
-            <label>Sync Tide (Today's High Tide)</label>
+            <label id="ui-label-sync">Sync Tide (High Tide)</label>
             <input type="time" id="tideSync" value="12:00">
         </div>
     </div>
@@ -82,18 +96,64 @@
         <canvas id="mainChart"></canvas>
     </div>
 
-    <div class="disclaimer">
-        <strong>Data Accuracy Note:</strong> Wind speed and direction are live API data. Because astronomical tide phases vary by local geography, please calibrate the "Sync Tide" input using a local tide table for your current location. Once synced, subsequent days are calculated using the 12.42h lunar cycle. Projections are for reference only.
-    </div>
+    <div class="disclaimer" id="ui-disclaimer"></div>
 </div>
 
 <script>
+    const translations = {
+        en: {
+            title: "Coastal Forecast",
+            statusLoc: "Detecting location...",
+            statusData: "Retrieving global data...",
+            labelDay: "Forecast Day",
+            labelSync: "Sync Tide (High Tide Today)",
+            chartTide: "Tide Height (m)",
+            chartWind: "Avg. Wind (km/h)",
+            chartGusts: "Gusts (km/h)",
+            yAxisWind: "Wind Speed (km/h)",
+            yAxisTide: "Height (m)",
+            disclaimer: "<strong>Note:</strong> Meteorological data is provided by the Open-Meteo API. Tides for subsequent days are mathematically modeled using astronomical cycles (M2 constituent) based on your initial sync. These projections are for informational purposes only and may not correspond to actual real-time local conditions. For navigation or safety-critical activities, please consult official hydrographic services."
+        },
+        pt: {
+            title: "Previsão Costeira",
+            statusLoc: "A detetar localização...",
+            statusData: "A obter dados globais...",
+            labelDay: "Dia da Previsão",
+            labelSync: "Sincronizar Maré (Preia-mar hoje)",
+            chartTide: "Altura da Maré (m)",
+            chartWind: "Vento Médio (km/h)",
+            chartGusts: "Rajadas (km/h)",
+            yAxisWind: "Velocidade do Vento (km/h)",
+            yAxisTide: "Altura (m)",
+            disclaimer: "<strong>Nota:</strong> Os dados meteorológicos são fornecidos pela API Open-Meteo. As marés para os dias subsequentes são modeladas matematicamente usando ciclos astronómicos (constituinte M2) com base na sua sincronização inicial. Estas projeções são apenas para fins informativos e podem não corresponder às condições locais reais. Para navegação ou atividades de segurança crítica, consulte os serviços hidrográficos oficiais."
+        }
+    };
+
     let weatherData = null;
     let daysMap = {};
     let activeChart = null;
+    let currentLang = localStorage.getItem('preferredLang') || 'en';
     const LUNAR_CYCLE = 12.4206;
 
-    // Load saved tide offset from browser memory
+    // UI Elements
+    const langPicker = document.getElementById('langPicker');
+    langPicker.value = currentLang;
+
+    function updateUIText() {
+        const t = translations[currentLang];
+        document.getElementById('ui-title').innerText = t.title;
+        document.getElementById('ui-label-day').innerText = t.labelDay;
+        document.getElementById('ui-label-sync').innerText = t.labelSync;
+        document.getElementById('ui-disclaimer').innerHTML = t.disclaimer;
+        if (weatherData) render(document.getElementById('dayPicker').value);
+    }
+
+    langPicker.addEventListener('change', (e) => {
+        currentLang = e.target.value;
+        localStorage.setItem('preferredLang', currentLang);
+        updateUIText();
+    });
+
     let savedOffset = localStorage.getItem('tideOffset') || 0;
     document.getElementById('tideSync').value = localStorage.getItem('tideTime') || "12:00";
 
@@ -103,6 +163,7 @@
     }
 
     function render(dateKey) {
+        const t = translations[currentLang];
         const indices = daysMap[dateKey];
         const firstHour = new Date(weatherData.hourly.time[0]).getTime();
         
@@ -114,7 +175,6 @@
         const windSpeeds = indices.map(i => weatherData.hourly.wind_speed_10m[i]);
         const windGusts = indices.map(i => weatherData.hourly.wind_gusts_10m[i]);
 
-        // Calculate tide heights based on sync point
         const tideHeights = indices.map(i => {
             const currentTime = new Date(weatherData.hourly.time[i]).getTime();
             const hoursSinceEpoch = (currentTime - firstHour) / 3600000;
@@ -130,25 +190,26 @@
                 labels: labels,
                 datasets: [
                     {
-                        type: 'line', label: 'Tide (m)', data: tideHeights,
+                        type: 'line', label: t.chartTide, data: tideHeights,
                         borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.1)',
                         fill: true, tension: 0.4, yAxisID: 'yT', pointRadius: 0
                     },
                     {
-                        type: 'line', label: 'Gusts (km/h)', data: windGusts,
+                        type: 'line', label: t.chartGusts, data: windGusts,
                         borderColor: 'rgba(255,255,255,0.4)', borderDash: [5,5], yAxisID: 'yW', pointRadius: 2
                     },
                     {
-                        type: 'bar', label: 'Wind (km/h)', data: windSpeeds,
+                        type: 'bar', label: t.chartWind, data: windSpeeds,
                         backgroundColor: windSpeeds.map(s => s < 15 ? '#2ecc71' : (s < 30 ? '#f1c40f' : '#e74c3c')),
                         borderRadius: 4, yAxisID: 'yW'
                     }
                 ]
             },
             options: {
+                responsive: true,
                 scales: {
-                    yW: { position: 'left', title: { display: true, text: 'Wind Speed (km/h)', color: '#fff' } },
-                    yT: { position: 'right', title: { display: true, text: 'Tide Height (m)', color: '#3498db' }, grid: { display: false }, min: 0, max: 4 }
+                    yW: { position: 'left', title: { display: true, text: t.yAxisWind, color: '#fff' } },
+                    yT: { position: 'right', title: { display: true, text: t.yAxisTide, color: '#3498db' }, grid: { display: false }, min: 0, max: 4 }
                 },
                 plugins: { legend: { labels: { color: '#c9d1d9' } } }
             }
@@ -160,19 +221,21 @@
         const now = new Date();
         const highTideDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, mins);
         const firstHourDate = new Date(weatherData.hourly.time[0]);
-        
         const diffInHours = (highTideDate - firstHourDate) / 3600000;
-        // Adjust sine phase so that High Tide (Peak) occurs at the user-defined time
         const newOffset = (Math.PI / 2) - ((diffInHours / LUNAR_CYCLE) * Math.PI * 2);
-        
         savedOffset = newOffset;
         localStorage.setItem('tideOffset', newOffset);
         localStorage.setItem('tideTime', timeString);
         render(document.getElementById('dayPicker').value);
     }
 
+    // Initialize UI
+    updateUIText();
+
     navigator.geolocation.getCurrentPosition(async (p) => {
         const { latitude: lat, longitude: lon } = p.coords;
+        document.getElementById('status').innerText = translations[currentLang].statusData;
+
         try {
             const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto`);
             weatherData = await res.json();
@@ -187,7 +250,8 @@
             Object.keys(daysMap).forEach(d => {
                 const opt = document.createElement('option');
                 opt.value = d;
-                opt.innerText = new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+                const dateObj = new Date(d);
+                opt.innerText = dateObj.toLocaleDateString(currentLang === 'en' ? 'en-GB' : 'pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
                 sel.appendChild(opt);
             });
 
@@ -197,12 +261,12 @@
             const tideInput = document.getElementById('tideSync');
             tideInput.addEventListener('change', (e) => calculateOffset(e.target.value));
             
-            // Initial render
             calculateOffset(tideInput.value);
-
             sel.onchange = (e) => render(e.target.value);
         } catch (e) { document.getElementById('status').innerText = "Service unavailable."; }
-    }, () => { document.getElementById('status').innerText = "Location access required."; });
+    }, () => { 
+        document.getElementById('status').innerText = translations[currentLang === 'en' ? 'en' : 'pt'].statusLoc; 
+    });
 </script>
 
 </body>
