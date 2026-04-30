@@ -29,9 +29,9 @@
         .dashboard-controls {
             display: flex;
             flex-wrap: wrap;
-            gap: 30px;
+            gap: 40px; /* Increased gap to separate compass */
             justify-content: center;
-            align-items: center;
+            align-items: flex-end; /* Aligns compass with the inputs/selects */
             background: #161b22;
             padding: 20px;
             border-radius: 8px;
@@ -40,8 +40,7 @@
             display: none;
         }
 
-        .control-group { display: flex; flex-direction: column; gap: 8px; position: relative; }
-        .control-with-compass { display: flex; align-items: center; gap: 12px; }
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
 
         label { font-size: 0.85em; font-weight: 600; color: #8b949e; text-transform: uppercase; }
         
@@ -56,17 +55,19 @@
             box-sizing: border-box;
         }
 
+        /* Compass Box - Now standalone on the far left */
         .compass-box {
             display: flex;
             align-items: center;
             justify-content: center;
             background: #0d1117;
             padding: 2px;
-            border-radius: 8px;
             border: 1px solid #30363d;
+            border-radius: 8px;
             height: 42px;
             width: 42px;
             box-sizing: border-box;
+            margin-right: 20px; /* Extra spacing from the controls */
         }
         .compass-svg {
             width: 32px;
@@ -109,19 +110,24 @@
     <div id="status">Establishing connection...</div>
 
     <div class="dashboard-controls" id="controls">
-        <!-- Simplified Day Picker without top label -->
-        <div class="control-with-compass">
-            <div class="compass-box" title="North Reference">
-                <svg class="compass-svg" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="45" fill="none" stroke="#30363d" stroke-width="2"/>
-                    <path d="M50 10 L40 50 L50 40 L60 50 Z" fill="#e74c3c"/>
-                    <path d="M50 90 L40 50 L50 60 L60 50 Z" fill="#c9d1d9"/>
-                    <text x="50" y="26" fill="#f0f6fc" font-size="14" font-weight="bold" text-anchor="middle">N</text>
-                </svg>
-            </div>
+        
+        <!-- Compass on the far left -->
+        <div class="compass-box" title="North Reference">
+            <svg class="compass-svg" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#30363d" stroke-width="2"/>
+                <path d="M50 10 L40 50 L50 40 L60 50 Z" fill="#e74c3c"/>
+                <path d="M50 90 L40 50 L50 60 L60 50 Z" fill="#c9d1d9"/>
+                <text x="50" y="26" fill="#f0f6fc" font-size="14" font-weight="bold" text-anchor="middle">N</text>
+            </svg>
+        </div>
+
+        <!-- Date Control Group -->
+        <div class="control-group">
+            <label id="ui-label-day">Forecast Day</label>
             <select id="dayPicker"></select>
         </div>
 
+        <!-- Tide Sync Control Group -->
         <div class="control-group">
             <label id="ui-label-sync">Sync Tide (High Tide)</label>
             <input type="time" id="tideSync" value="12:00">
@@ -141,25 +147,27 @@
             title: "Coastal Forecast",
             statusLoc: "Detecting location...",
             statusData: "Retrieving global data...",
+            labelDay: "Forecast Day",
             labelSync: "Sync Tide (High Tide Today)",
             chartTide: "Tide Height (m)",
             chartWind: "Avg. Wind (km/h)",
             chartGusts: "Gusts (km/h)",
             yAxisWind: "Wind Speed (km/h)",
             yAxisTide: "Height (m)",
-            disclaimer: "<strong>Note:</strong> Meteorological data is provided by the Open-Meteo API. Tides for subsequent days are mathematically modeled using astronomical cycles (M2 constituent) based on your initial sync. These projections are for informational purposes only."
+            disclaimer: "<strong>Note:</strong> Meteorological data is provided by the Open-Meteo API. Tides for subsequent days are mathematically modeled based on your initial sync. These projections are for informational purposes only."
         },
         pt: {
             title: "Previsão Costeira",
             statusLoc: "A detetar localização...",
             statusData: "A obter dados globais...",
+            labelDay: "Dia da Previsão",
             labelSync: "Sincronizar Maré (Preia-mar hoje)",
             chartTide: "Altura da Maré (m)",
             chartWind: "Vento Médio (km/h)",
             chartGusts: "Rajadas (km/h)",
             yAxisWind: "Velocidade do Vento (km/h)",
             yAxisTide: "Altura (m)",
-            disclaimer: "<strong>Nota:</strong> Os dados meteorológicos são fornecidos pela API Open-Meteo. As marés são modeladas matematicamente (constituinte M2) com base na sua sincronização inicial. Estas projeções são informativas apenas."
+            disclaimer: "<strong>Nota:</strong> Os dados meteorológicos são fornecidos pela API Open-Meteo. As marés são modeladas matematicamente com base na sincronização inicial. Estas projeções são informativas apenas."
         }
     };
 
@@ -175,6 +183,7 @@
     function updateUIText() {
         const t = translations[currentLang];
         document.getElementById('ui-title').innerText = t.title;
+        document.getElementById('ui-label-day').innerText = t.labelDay;
         document.getElementById('ui-label-sync').innerText = t.labelSync;
         document.getElementById('ui-disclaimer').innerHTML = t.disclaimer;
         if (weatherData) render(document.getElementById('dayPicker').value);
