@@ -54,18 +54,16 @@
             document.getElementById('status').innerText = "O teu browser não tem GPS.";
         }
 
-        // Esta é a função que resolve o teu problema aí em Lisboa. Não a apagues!
+        // Radar esticado até aos ~33km para apanhar o Tejo na Póvoa
         async function getTideTeimoso(lat, lon) {
             const offsets = [
                 [0, 0],           
-                [0, -0.05],       
-                [-0.05, 0],       
-                [0, 0.05],        
-                [0.05, 0],        
-                [0, -0.1],        
-                [-0.1, 0],        
-                [0, 0.1],         
-                [0.1, 0]          
+                [0, -0.05], [-0.05, 0], [0, 0.05], [0.05, 0],         // ~5km
+                [0, -0.1], [-0.1, 0], [0, 0.1], [0.1, 0],             // ~11km
+                [0, -0.15], [-0.15, 0], [0, 0.15], [0.15, 0],         // ~16km
+                [0, -0.2], [-0.2, 0], [0, 0.2], [0.2, 0],             // ~22km
+                [0, -0.25], [-0.25, 0], [0, 0.25], [0.25, 0],         // ~27km
+                [0, -0.3], [-0.3, 0], [0, 0.3], [0.3, 0]              // ~33km
             ];
 
             for (let i = 0; i < offsets.length; i++) {
@@ -76,6 +74,7 @@
                     if (res.ok) {
                         let data = await res.json();
                         if (!data.error && data.hourly && data.hourly.ocean_tide) {
+                            console.log(`Maré encontrada a ${Math.round(Math.max(Math.abs(offsets[i][0]), Math.abs(offsets[i][1])) * 111)}km de distância.`);
                             return data.hourly.ocean_tide; 
                         }
                     }
@@ -99,13 +98,13 @@
                 } catch (e) {}
 
                 document.getElementById('page-title').innerText = `Canoagem/Surf/Windsurf - ${locationName}`;
-                document.getElementById('status').innerText = 'A varrer o mapa à procura de marés...';
+                document.getElementById('status').innerText = 'A varrer o mapa à procura de marés (raio de 33km)...';
 
                 const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=windspeed_10m,winddirection_10m&timezone=auto&forecast_days=1`);
                 if (!weatherRes.ok) throw new Error("A API do vento pifou.");
                 const weatherData = await weatherRes.json();
 
-                // Busca teimosa a funcionar
+                // Busca hiper-teimosa a funcionar
                 const tides = await getTideTeimoso(lat, lon);
 
                 document.getElementById('status').style.display = 'none';
@@ -182,7 +181,7 @@
                 };
             } else {
                 document.getElementById('status').style.display = 'block';
-                document.getElementById('status').innerText = "Vento carregado. Mas o radar não encontrou marés em 11km.";
+                document.getElementById('status').innerText = "Vento carregado. Mas o radar varreu 33km e não encontrou marés. A API deve estar aziada com o Tejo.";
             }
 
             new Chart(ctx, {
