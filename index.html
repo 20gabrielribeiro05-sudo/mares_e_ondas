@@ -1,152 +1,124 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Condições de Surf e Vento - Lisboa</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { 
-            font-family: sans-serif; 
-            text-align: center; 
-            background-color: #f4f4f9; 
-            padding: 20px; 
-            margin: 0;
-        }
-        .chart-container { 
-            position: relative; 
-            width: 95vw; 
-            max-width: 1000px; 
-            margin: auto; 
-            background: white; 
-            padding: 20px; 
-            border-radius: 10px; 
-            box-shadow: 0px 4px 10px rgba(0,0,0,0.1); 
-        }
-        #status { 
-            font-weight: bold; 
-            color: #333; 
-            margin-bottom: 20px;
-        }
-        #page-title {
-            margin-bottom: 10px;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Marine Conditions</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #0f172a;
+    color: white;
+    text-align: center;
+    margin: 0;
+    padding: 20px;
+  }
+
+  canvas {
+    max-width: 100%;
+    margin-top: 20px;
+  }
+</style>
 </head>
 <body>
-    <h2 id="page-title">Canoagem/Surf/Windsurf - Lisboa (Costa)</h2>
-    <p id="status">A sacar os dados...</p>
-    
-    <div class="chart-container">
-        <canvas id="surfChart"></canvas>
-    </div>
 
-    <script>
-        // Transforma os graus da direção do vento em letras
-        function degToCompass(num) {
-            const val = Math.floor((num / 22.5) + 0.5);
-            const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
-            return arr[(val % 16)];
+<h2>Today's Wind & Waves</h2>
+<p id="status">Getting location...</p>
+
+<canvas id="chart"></canvas>
+
+<script>
+async function getData(lat, lon) {
+  const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=wave_height,wind_speed_10m,wind_direction_10m&timezone=auto`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  return data.hourly;
+}
+
+function createChart(hours, windSpeed, waveHeight, windDir) {
+  const ctx = document.getElementById('chart').getContext('2d');
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: hours,
+      datasets: [
+        {
+          label: 'Wind Speed (km/h)',
+          data: windSpeed,
+          borderWidth: 2,
+          yAxisID: 'y1',
+          tension: 0.3
+        },
+        {
+          label: 'Wave Height (m)',
+          data: waveHeight,
+          borderWidth: 2,
+          yAxisID: 'y2',
+          tension: 0.3
         }
-
-        async function fetchData() {
-            // Coordenadas fixas para Lisboa (zona de Cascais/Carcavelos, onde a API de marés funciona a 100%)
-            const lat = 38.69;
-            const lon = -9.43;
-            
-            try {
-                // Vai buscar vento e marés direto e reto
-                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=windspeed_10m,winddirection_10m&timezone=auto&forecast_days=1`);
-                const marineRes = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=ocean_tide&timezone=auto&forecast_days=1`);
-
-                if (!weatherRes.ok) throw new Error("A API do vento falhou.");
-                if (!marineRes.ok) throw new Error("A API das marés falhou.");
-
-                const weatherData = await weatherRes.json();
-                const marineData = await marineRes.json();
-
-                // Esconde a mensagem a dizer que está a carregar
-                document.getElementById('status').style.display = 'none';
-
-                const hourly = weatherData.hourly;
-                const marineHourly = marineData.hourly;
-
-                // Montar o eixo X (Hora em cima, Direção em baixo)
-                const labels = hourly.time.map((timeString, index) => {
-                    const date = new Date(timeString);
-                    const hours = date.getHours().toString().padStart(2, '0') + ':00';
-                    const dir = degToCompass(hourly.winddirection_10m[index]);
-                    return [hours, dir]; 
-                });
-
-                const windSpeeds = hourly.windspeed_10m;
-                const tides = marineHourly.ocean_tide;
-
-                drawChart(labels, windSpeeds, tides);
-
-            } catch (err) {
-                document.getElementById('status').innerText = 'Deu barraca a carregar os dados. Vê a consola.';
-                console.error(err);
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      scales: {
+        x: {
+          ticks: {
+            callback: function(value, index) {
+              return hours[index] + "\n" + windDir[index] + "°";
             }
+          }
+        },
+        y1: {
+          type: 'linear',
+          position: 'left',
+          title: {
+            display: true,
+            text: 'Wind (km/h)'
+          }
+        },
+        y2: {
+          type: 'linear',
+          position: 'right',
+          title: {
+            display: true,
+            text: 'Wave (m)'
+          },
+          grid: {
+            drawOnChartArea: false
+          }
         }
+      }
+    }
+  });
+}
 
-        function drawChart(labels, windSpeeds, tides) {
-            const ctx = document.getElementById('surfChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Vento (km/h)',
-                            data: windSpeeds,
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                            yAxisID: 'y-wind',
-                            tension: 0.3,
-                            fill: true
-                        },
-                        {
-                            label: 'Altura da Maré (m)',
-                            data: tides,
-                            borderColor: 'rgba(255, 99, 132, 1)',
-                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                            yAxisID: 'y-tide',
-                            tension: 0.4,
-                            fill: true
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    },
-                    scales: {
-                        x: {
-                            title: { display: true, text: 'Hora & Direção do Vento' }
-                        },
-                        'y-wind': {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            title: { display: true, text: 'Vento (km/h)' }
-                        },
-                        'y-tide': {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            title: { display: true, text: 'Maré (m)' },
-                            grid: { drawOnChartArea: false } 
-                        }
-                    }
-                }
-            });
-        }
+navigator.geolocation.getCurrentPosition(async (pos) => {
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
 
-        // Arranca o processo assim que a página é lida
-        window.onload = fetchData;
-    </script>
+  document.getElementById("status").innerText =
+    `Location: ${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+
+  const data = await getData(lat, lon);
+
+  const hours = data.time.map(t => t.split("T")[1].slice(0,5));
+  const windSpeed = data.wind_speed_10m;
+  const waveHeight = data.wave_height;
+  const windDir = data.wind_direction_10m;
+
+  createChart(hours, windSpeed, waveHeight, windDir);
+
+}, () => {
+  document.getElementById("status").innerText = "Location access denied.";
+});
+</script>
+
 </body>
 </html>
