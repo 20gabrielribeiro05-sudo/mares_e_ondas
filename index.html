@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canoe & Kayak | Pro Forecast</title>
+    <title>Canoe Conditions | Pro Forecast</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0b0e14;
-            --card: #151921;
-            --border: #2d333b;
-            --accent: #2ea043; /* Green for river/nature */
-            --text: #adbac7;
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --tide-blue: #3498db;
+            --text: #c9d1d9;
             --title: #f0f6fc;
-            --warning: #f85149;
         }
 
         body {
@@ -38,12 +37,12 @@
 
         h1 {
             font-weight: 600;
-            font-size: 2rem;
+            font-size: 2.2rem;
             color: var(--title);
             margin: 0;
-            background: linear-gradient(90deg, #fff, var(--accent));
+            background: linear-gradient(90deg, #fff, var(--tide-blue));
             -webkit-background-clip: text;
-            -webkit-fill-color: transparent;
+            -webkit-text-fill-color: transparent;
         }
 
         select, input {
@@ -57,18 +56,18 @@
         }
 
         #status {
-            background: rgba(46, 160, 67, 0.1);
+            background: rgba(52, 152, 219, 0.1);
             padding: 15px;
-            border-radius: 10px;
+            border-radius: 12px;
             text-align: center;
             margin-bottom: 20px;
-            border: 1px solid var(--accent);
+            border: 1px solid var(--tide-blue);
         }
 
         .dashboard-controls {
             display: none;
             grid-template-columns: auto 1fr 1.5fr;
-            gap: 20px;
+            gap: 25px;
             align-items: center;
             background: var(--card);
             padding: 25px;
@@ -78,7 +77,7 @@
         }
 
         .control-group { display: flex; flex-direction: column; gap: 8px; }
-        .control-group label { font-size: 0.75rem; font-weight: 600; color: #768390; text-transform: uppercase; letter-spacing: 0.5px; }
+        .control-group label { font-size: 0.75rem; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
 
         .compass-box {
             background: var(--bg);
@@ -96,7 +95,7 @@
             padding: 25px;
             border-radius: 16px;
             border: 1px solid var(--border);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
         }
 
         .guide-bar {
@@ -104,15 +103,20 @@
             justify-content: space-around;
             margin-top: 25px;
             font-size: 0.8rem;
-            color: #768390;
+            color: #8b949e;
         }
 
         .disclaimer {
             margin-top: 40px;
             font-size: 0.75rem;
-            color: #444c56;
+            color: #484f58;
             text-align: center;
             line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-controls { grid-template-columns: 1fr; text-align: center; justify-items: center; }
+            h1 { font-size: 1.6rem; }
         }
     </style>
 </head>
@@ -124,29 +128,32 @@
             <option value="en">English</option>
             <option value="pt">Português</option>
         </select>
-        <h1 id="ui-title">Canoeing Forecast</h1>
+        <h1 id="ui-title">Canoe Conditions</h1>
         <div style="width: 70px;"></div> 
     </div>
 
-    <div id="status">Syncing with river sensors...</div>
+    <div id="status">Syncing with GPS & Weather Stations...</div>
 
     <div class="dashboard-controls" id="controls">
+        <!-- North Reference -->
         <div class="compass-box">
             <svg class="compass-svg" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="45" fill="none" stroke="#2d333b" stroke-width="2"/>
-                <path d="M50 10 L44 50 L50 44 L56 50 Z" fill="#2ea043"/>
-                <path d="M50 90 L44 50 L50 56 L56 50 Z" fill="#adbac7"/>
-                <text x="50" y="30" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">N</text>
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#30363d" stroke-width="2"/>
+                <path d="M50 10 L42 50 L50 42 L58 50 Z" fill="#e74c3c"/>
+                <path d="M50 90 L42 50 L50 58 L58 50 Z" fill="#adbac7"/>
+                <text x="50" y="28" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">N</text>
             </svg>
         </div>
 
+        <!-- Date Selection -->
         <div class="control-group">
             <label id="ui-label-day">Paddle Day</label>
             <select id="dayPicker"></select>
         </div>
 
+        <!-- Tide Sync -->
         <div class="control-group">
-            <label id="ui-label-sync">Sync Tide (Crucial for Estuaries)</label>
+            <label id="ui-label-sync">Sync Tide (High Tide Today)</label>
             <input type="time" id="tideSync" value="12:00">
         </div>
     </div>
@@ -155,9 +162,9 @@
         <canvas id="mainChart"></canvas>
         
         <div class="guide-bar" id="ui-guide">
-            <div id="guide-1">1. Set Location</div>
+            <div id="guide-1">1. GPS Active</div>
             <div id="guide-2">2. Pick Day</div>
-            <div id="guide-3">3. Check Current</div>
+            <div id="guide-3">3. Tide Matched</div>
         </div>
     </div>
 
@@ -167,30 +174,32 @@
 <script>
     const translations = {
         en: {
-            title: "Canoe & Kayak Forecast",
-            statusData: "Loading river metrics...",
-            statusLoc: "Location required for safety.",
-            labelDay: "Paddling Day",
-            labelSync: "Sync Estuary High Tide",
+            title: "Canoe Conditions",
+            statusData: "Loading local river data...",
+            statusLoc: "Awaiting GPS location...",
+            labelDay: "Forecast Day",
+            labelSync: "Sync Tide (High Tide Today)",
             chartTide: "Tide Level (m)",
             chartWind: "Wind Speed",
-            chartGusts: "Gusts (Beware!)",
-            yWind: "km/h",
+            chartGusts: "Wind Gusts",
+            yWind: "Speed (km/h)",
             yTide: "Height (m)",
-            disclaimer: "Specialized canoeing projection. Wind colors: Green < 12km/h (Easy), Yellow < 22km/h (Hard), Red > 22km/h (Danger)."
+            guide1: "GPS Connected", guide2: "Select Day", guide3: "Tide Synced",
+            disclaimer: "Data powered by Open-Meteo. Tides are mathematically projected based on your initial sync time. Not for legal navigation."
         },
         pt: {
-            title: "Previsão de Canoagem",
-            statusData: "A obter métricas do rio...",
-            statusLoc: "Localização necessária por segurança.",
-            labelDay: "Dia da Remada",
-            labelSync: "Sincronizar Maré (Estuário)",
-            chartTide: "Nível da Água (m)",
-            chartWind: "Vento",
-            chartGusts: "Rajadas (Cuidado!)",
-            yWind: "km/h",
+            title: "Condições Canoagem",
+            statusData: "A carregar dados locais...",
+            statusLoc: "A aguardar localização GPS...",
+            labelDay: "Dia da Previsão",
+            labelSync: "Sincronizar Maré (Preia-mar Hoje)",
+            chartTide: "Nível da Maré (m)",
+            chartWind: "Vento Médio",
+            chartGusts: "Rajadas de Vento",
+            yWind: "Velocidade (km/h)",
             yTide: "Altura (m)",
-            disclaimer: "Projeção especializada para canoagem. Cores: Verde < 12km/h (Fácil), Amarelo < 22km/h (Duro), Vermelho > 22km/h (Perigo)."
+            guide1: "GPS Ligado", guide2: "Escolher Dia", guide3: "Maré Sincronizada",
+            disclaimer: "Dados via API Open-Meteo. Marés projetadas matematicamente com base no seu ajuste. Apenas para referência informativa."
         }
     };
 
@@ -198,12 +207,21 @@
     let currentLang = localStorage.getItem('preferredLang') || 'en';
     const LUNAR_CYCLE = 12.4206;
 
+    function getWindColor(speed) {
+        if (speed < 12) return '#2ecc71'; // Green (Safe)
+        if (speed < 22) return '#f1c40f'; // Yellow (Caution)
+        return '#e74c3c'; // Red (Danger)
+    }
+
     function updateUI() {
         const t = translations[currentLang];
         document.getElementById('ui-title').innerText = t.title;
         document.getElementById('ui-label-day').innerText = t.labelDay;
         document.getElementById('ui-label-sync').innerText = t.labelSync;
         document.getElementById('ui-disclaimer').innerHTML = t.disclaimer;
+        document.getElementById('guide-1').innerText = t.guide1;
+        document.getElementById('guide-2').innerText = t.guide2;
+        document.getElementById('guide-3').innerText = t.guide3;
         if (weatherData) render(document.getElementById('dayPicker').value);
     }
 
@@ -212,13 +230,6 @@
         localStorage.setItem('preferredLang', currentLang);
         updateUI();
     };
-
-    function getWindColor(speed) {
-        // Stricter limits for Canoeing safety
-        if (speed < 12) return '#3fb950'; // Green
-        if (speed < 22) return '#d29922'; // Yellow
-        return '#f85149'; // Red
-    }
 
     function render(dateKey) {
         const t = translations[currentLang], indices = daysMap[dateKey];
@@ -238,17 +249,18 @@
             data: {
                 labels: labels,
                 datasets: [
-                    { type: 'line', label: t.chartTide, data: tides, borderColor: '#2ea043', backgroundColor: 'rgba(46,160,67,0.1)', fill: true, tension: 0.4, yAxisID: 'yT', pointRadius: 0 },
-                    { type: 'line', label: t.chartGusts, data: gusts, borderColor: 'rgba(255,255,255,0.2)', borderDash: [3,3], yAxisID: 'yV', pointRadius: 0 },
+                    { type: 'line', label: t.chartTide, data: tides, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.4, yAxisID: 'yT', pointRadius: 0 },
+                    { type: 'line', label: t.chartGusts, data: gusts, borderColor: 'rgba(255, 255, 255, 0.4)', borderDash: [5,5], yAxisID: 'yV', pointRadius: 2 },
                     { type: 'bar', label: t.chartWind, data: speeds, backgroundColor: speeds.map(getWindColor), borderRadius: 6, yAxisID: 'yV' }
                 ]
             },
             options: {
                 responsive: true,
                 scales: {
-                    yV: { position: 'left', title: { display: true, text: t.yWind }, grid: { color: '#2d333b' } },
-                    yT: { position: 'right', grid: { display: false }, min: 0, max: 4, ticks: { color: '#2ea043' } }
-                }
+                    yV: { position: 'left', title: { display: true, text: t.yWind, color: '#8b949e' }, grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+                    yT: { position: 'right', grid: { display: false }, min: 0, max: 4, ticks: { color: '#3498db' }, title: { display: true, text: t.yTide, color: '#3498db' } }
+                },
+                plugins: { legend: { labels: { color: '#c9d1d9', usePointStyle: true, padding: 20 } } }
             }
         });
     }
@@ -284,8 +296,8 @@
             syncTide(tideInput.value);
             sel.onchange = () => render(sel.value);
             updateUI();
-        } catch (e) { document.getElementById('status').innerText = "Sensor Error."; }
-    }, () => { document.getElementById('status').innerText = "Location needed."; });
+        } catch (e) { document.getElementById('status').innerText = "Data Error."; }
+    }, () => { document.getElementById('status').innerText = translations[currentLang].statusLoc; });
 </script>
 
 </body>
